@@ -54,8 +54,7 @@ def compare_text(path_a, path_b, threshold=0.98):
 def image_to_base64(image):
     buf = BytesIO()
     image.save(buf, format="PNG")
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    return f"data:image/png;base64,{b64}"
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 def compare_images(path_a, path_b, dpi=200, threshold=10000):
     try:
@@ -70,18 +69,18 @@ def compare_images(path_a, path_b, dpi=200, threshold=10000):
             img_b = images_b[i].convert("RGB")
 
             if img_a.size != img_b.size:
-                return True, i + 1, img_a, img_b  # olika storlek
+                return True, i + 1, img_a, img_b, 99999
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
 
             if diff_score > threshold:
-                return True, i + 1, img_a, img_b
+                return True, i + 1, img_a, img_b, diff_score
 
-        return False, None, None, None
+        return False, None, None, None, 0
     except Exception as e:
         print("Fel vid bildjämförelse:", e)
-        return False, None, None, None
+        return False, None, None, None, 0
 
 def file_icon(filename):
     return "📄" if filename.lower().endswith(".pdf") else "🗜️"
@@ -121,11 +120,11 @@ if file_a and file_b:
                     with row[3]: st.write("⚠️")
                     with row[4]: st.write("Text ändrad")
                 else:
-                    img_changed, page, img_a, img_b = compare_images(pdfs_a[name], pdfs_b[name])
+                    img_changed, page, img_a, img_b, score = compare_images(pdfs_a[name], pdfs_b[name])
                     if img_changed:
                         with row[3]: st.write("⚠️")
                         with row[4]: st.write(f"Bild/ritning ändrad (sida {page})")
-                        with st.expander(f"🔍 Visa skillnad: {name} – Sida {page}"):
+                        with st.expander(f"🔍 Visa skillnad: {name} – Sida {page} (diff-score: {score})"):
                             col_a, col_b = st.columns(2)
                             col_a.image(img_a, caption="Version A")
                             col_b.image(img_b, caption="Version B")
