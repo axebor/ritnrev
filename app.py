@@ -51,13 +51,9 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def image_to_base64(image):
-    buf = BytesIO()
-    image.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode("utf-8")
-
-def compare_images(path_a, path_b, dpi=200, threshold=10000):
+def compare_images(path_a, path_b, dpi=200, threshold=1):
     try:
+        name = os.path.basename(path_a)
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
             images_a = convert_from_bytes(f1.read(), dpi=dpi)
             images_b = convert_from_bytes(f2.read(), dpi=dpi)
@@ -69,10 +65,13 @@ def compare_images(path_a, path_b, dpi=200, threshold=10000):
             img_b = images_b[i].convert("RGB")
 
             if img_a.size != img_b.size:
+                print(f"[{name}] Sida {i+1}: olika storlek – diff!")
                 return True, i + 1, img_a, img_b, 99999
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
+
+            print(f"[{name}] Sida {i+1} – diff_score: {diff_score}")
 
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
