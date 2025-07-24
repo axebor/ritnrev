@@ -1,4 +1,7 @@
 import streamlit as st
+import os
+import zipfile
+import tempfile
 from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
@@ -16,29 +19,26 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-# --- Funktioner ---
-def delete_project(pid):
-    st.session_state.projects.pop(pid, None)
-    if st.session_state.active_project == pid:
-        st.session_state.active_project = None
-
-def delete_revision(project_id, index):
-    st.session_state.projects[project_id]["revisions"].pop(index)
+if "last_created_project" not in st.session_state:
+    st.session_state.last_created_project = None
 
 # --- Sidomeny ---
 st.sidebar.title("📁 Projekt")
 
+# Nytt projekt-knapp
 if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_project_form = True
-    st.session_state.show_revision_form = False
 
+# Formulär: skapa projekt
 if st.session_state.show_project_form:
     with st.sidebar.form("create_project"):
         name = st.text_input("Projektnamn")
         description = st.text_area("Beskrivning")
-        col1, col2 = st.columns(2)
-        create = col1.form_submit_button("Skapa projekt")
-        cancel = col2.form_submit_button("❌ Stäng")
+        cols = st.columns([1, 1])
+        with cols[0]:
+            create = st.form_submit_button("Skapa projekt")
+        with cols[1]:
+            cancel = st.form_submit_button("❌ Stäng")
 
         if cancel:
             st.session_state.show_project_form = False
@@ -51,40 +51,43 @@ if st.session_state.show_project_form:
                 "revisions": []
             }
             st.session_state.active_project = project_id
+            st.session_state.last_created_project = name
             st.session_state.show_project_form = False
-            st.success(f"Projekt '{name}' skapat!")
 
 # Lista projekt
 if st.session_state.projects:
-    st.sidebar.markdown("----")
-    st.sidebar.subheader("📂 Dina projekt")
+    st.sidebar.markdown("### 📂 Dina projekt")
     for pid, pdata in st.session_state.projects.items():
         col1, col2 = st.sidebar.columns([5, 1])
-        if col1.button(pdata["name"], key=f"proj_{pid}"):
+        if col1.button(pdata["name"], key=pid):
             st.session_state.active_project = pid
             st.session_state.show_revision_form = False
-        if col2.button("🗑️", key=f"del_{pid}"):
-            delete_project(pid)
+        if col2.button("🗑️", key=f"delete_{pid}"):
+            del st.session_state.projects[pid]
+            if st.session_state.active_project == pid:
+                st.session_state.active_project = None
+            st.experimental_rerun()
 
-# --- Huvudfönster ---
+# --- Huvudinnehåll ---
 st.title("RitnRev")
 
 if st.session_state.active_project:
-    pid = st.session_state.active_project
-    project = st.session_state.projects[pid]
+    project = st.session_state.projects[st.session_state.active_project]
+
+    if st.session_state.last_created_project == project["name"]:
+        st.success(f"Projekt '{project['name']}' skapat!")
+        st.session_state.last_created_project = None
 
     st.subheader(f"📄 Projekt: {project['name']}")
     st.write(project["description"])
 
     st.markdown("### 📌 Revisioner")
-    for i, rev in enumerate(project["revisions"]):
+    for rev in project["revisions"]:
         with st.expander(f"🔍 {rev['title']}"):
             st.write(rev["note"])
             st.write(f"{len(rev['files'])} fil(er) är kopplade.")
             for f in rev["files"]:
                 st.write(f"📄 {f.name}")
-            if st.button("🗑️ Ta bort revision", key=f"delrev_{i}"):
-                delete_revision(pid, i)
 
     st.markdown("---")
 
@@ -92,13 +95,15 @@ if st.session_state.active_project:
         st.session_state.show_revision_form = True
 
     if st.session_state.show_revision_form:
-        with st.form("create_revision"):
+        with st.form("new_revision"):
             rev_title = st.text_input("Revisionsnamn")
             rev_note = st.text_area("Anteckning eller syfte")
             rev_files = st.file_uploader("Ladda upp PDF- eller ZIP-filer", type=["pdf", "zip"], accept_multiple_files=True)
-            col1, col2 = st.columns(2)
-            save = col1.form_submit_button("Spara revision")
-            cancel = col2.form_submit_button("❌ Stäng")
+            cols = st.columns([1, 1])
+            with cols[0]:
+                save = st.form_submit_button("Spara revision")
+            with cols[1]:
+                cancel = st.form_submit_button("❌ Stäng")
 
             if cancel:
                 st.session_state.show_revision_form = False
