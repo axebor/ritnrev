@@ -23,7 +23,6 @@ def create_project(name, description):
     }
     st.session_state.active_project = project_id
     st.session_state.create_project_mode = False
-    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
 
 
 def delete_project(pid):
@@ -45,7 +44,7 @@ with st.sidebar:
     if st.button("➕ Skapa nytt projekt", key="create_project_btn", use_container_width=True):
         st.session_state.create_project_mode = True
         st.session_state.active_project = None
-        st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
+        st.rerun()
 
     st.markdown("---")
     st.markdown("### 📂 Dina projekt")
@@ -56,7 +55,7 @@ with st.sidebar:
             if st.button(pdata["name"], key=f"select_{pid}"):
                 st.session_state.active_project = pid
                 st.session_state.create_project_mode = False
-                st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
+                st.rerun()
         with c2:
             if st.button("✕", key=f"delproj_{pid}", help="Ta bort projekt"):
                 delete_project(pid)
@@ -66,13 +65,16 @@ with st.sidebar:
 if st.session_state.create_project_mode:
     st.title("Skapa nytt projekt")
     with st.form("create_project_form"):
-        name = st.text_input("Projektnamn")
-        description = st.text_area("Beskrivning")
+        name = st.text_input("Projektnamn", key="project_name")
+        description = st.text_area("Beskrivning", key="project_description")
         col1, col2 = st.columns([1, 5])
         with col1:
-            if st.form_submit_button("Skapa projekt"):
+            if st.form_submit_button("Skapa projekt", use_container_width=True):
                 if name.strip() != "":
                     create_project(name.strip(), description.strip())
+                    st.rerun()  # Tvinga omkörning efter att projektet skapats
+                else:
+                    st.error("Projektnamn får inte vara tomt!")
         with col2:
             if st.form_submit_button("Stäng", use_container_width=True):
                 close_project_form()
