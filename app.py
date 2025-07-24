@@ -1,7 +1,9 @@
 import streamlit as st
 from uuid import uuid4
 
-# --- Sidomeny: Anpassad bredd och låsning ---
+# --- Layout & stilanpassning ---
+st.set_page_config(page_title="RitnRev", layout="wide")
+
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {
@@ -14,12 +16,21 @@ st.markdown("""
         overflow-x: auto;
         white-space: nowrap;
     }
+
+    /* Indrag + mindre stil på revisioner */
+    .stButton > button[kind="secondary"]:has(svg[data-testid="icon-triangle"]) {
+        margin-left: 1.5rem;
+        font-size: 0.85rem;
+    }
+
+    /* Mindre font på "öppna projekt" */
+    .stButton > button[kind="secondary"]:has(svg[data-testid="icon-folder"]) {
+        font-size: 0.9rem;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-st.set_page_config(page_title="RitnRev", layout="wide")
-
-# --- Initiera session ---
+# --- Initiera sessionsdata ---
 if "projects" not in st.session_state:
     st.session_state.projects = {}
 
@@ -35,7 +46,7 @@ if "show_revision_form" not in st.session_state:
 # --- Sidomeny ---
 st.sidebar.title("📁 Projekt")
 
-# Skapa nytt projekt
+# Nytt projekt
 if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_project_form = True
 
@@ -56,7 +67,7 @@ if st.session_state.show_project_form:
             st.session_state.show_project_form = False
             st.rerun()
 
-# Lista projekt som expanderbart träd
+# Projekt & revisionsträd
 for pid, pdata in st.session_state.projects.items():
     with st.sidebar.expander(f"📁 {pdata['name']}"):
         if st.button("📂 Öppna projekt", key=f"open_{pid}"):
@@ -65,7 +76,7 @@ for pid, pdata in st.session_state.projects.items():
 
         for i, rev in enumerate(pdata["revisions"]):
             if st.button(f"📐 {rev['title']}", key=f"{pid}_rev_{i}"):
-                st.session_state.active_project = pid  # framtida vyer för revisioner
+                st.session_state.active_project = pid
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
