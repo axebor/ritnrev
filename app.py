@@ -1,7 +1,4 @@
 import streamlit as st
-import os
-import zipfile
-import tempfile
 from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
@@ -19,13 +16,13 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-# --- Sidomeny: Projektstruktur med "filträd" ---
+# --- Sidomeny ---
 st.sidebar.title("📁 Projekt")
 
+# Skapa nytt projekt
 if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_project_form = True
 
-# Formulär: skapa projekt
 if st.session_state.show_project_form:
     with st.sidebar.form("create_project"):
         name = st.text_input("Projektnamn")
@@ -33,27 +30,26 @@ if st.session_state.show_project_form:
         create = st.form_submit_button("Skapa projekt")
 
         if create and name:
-            project_id = str(uuid4())
-            st.session_state.projects[project_id] = {
+            pid = str(uuid4())
+            st.session_state.projects[pid] = {
                 "name": name,
                 "description": description,
                 "revisions": []
             }
-            st.session_state.active_project = project_id
+            st.session_state.active_project = pid
             st.session_state.show_project_form = False
-            st.rerun()  # Uppdatera vyn direkt
+            st.rerun()
 
-# Visa projektstruktur som "filträd"
-if st.session_state.projects:
-    for pid, pdata in st.session_state.projects.items():
-        with st.sidebar.expander(f"📁 {pdata['name']}", expanded=False):
-            if st.sidebar.button("📂 Öppna projekt", key=f"open_{pid}"):
-                st.session_state.active_project = pid
-                st.session_state.show_revision_form = False
+# Lista projekt som expanderbart träd
+for pid, pdata in st.session_state.projects.items():
+    with st.sidebar.expander(f"📁 {pdata['name']}"):
+        if st.button("📂 Öppna projekt", key=f"open_{pid}"):
+            st.session_state.active_project = pid
+            st.session_state.show_revision_form = False
 
-            for i, rev in enumerate(pdata["revisions"]):
-                if st.sidebar.button(f"🔄 {rev['title']}", key=f"{pid}_rev_{i}"):
-                    st.session_state.active_project = pid  # Kan byggas ut om du vill öppna revision direkt
+        for i, rev in enumerate(pdata["revisions"]):
+            if st.button(f"📐 {rev['title']}", key=f"{pid}_rev_{i}"):
+                st.session_state.active_project = pid  # ev. utökning: visa specifik revision
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
@@ -76,7 +72,6 @@ if st.session_state.active_project:
     if st.button("➕ Skapa ny revision"):
         st.session_state.show_revision_form = True
 
-    # Formulär: skapa revision
     if st.session_state.show_revision_form:
         with st.form("new_revision"):
             rev_title = st.text_input("Revisionsnamn")
@@ -85,14 +80,12 @@ if st.session_state.active_project:
             save = st.form_submit_button("Spara revision")
 
             if save and rev_title:
-                revision = {
+                project["revisions"].append({
                     "title": rev_title,
                     "note": rev_note,
                     "files": rev_files
-                }
-                project["revisions"].append(revision)
+                })
                 st.session_state.show_revision_form = False
                 st.rerun()
-
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
