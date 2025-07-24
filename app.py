@@ -39,34 +39,28 @@ if file_a and file_b:
         names_a = extract_pdf_names(file_a)
         names_b = extract_pdf_names(file_b)
 
-        set_a = set(names_a)
-        set_b = set(names_b)
+        st.markdown("### 📋 Jämförelsetabell")
 
-        both = sorted(set_a & set_b)
-        only_a = sorted(set_a - set_b)
-        only_b = sorted(set_b - set_a)
+        all_files = sorted(set(names_a).union(set(names_b)))
 
-        st.markdown("### ✅ Filer som finns i **båda versionerna**")
-        if both:
-            for name in both:
+        header_cols = st.columns([5, 2, 2])
+        with header_cols[0]:
+            st.markdown("**Filnamn**")
+        with header_cols[1]:
+            st.markdown("**Finns i Version A**")
+        with header_cols[2]:
+            st.markdown("**Finns i Version B**")
+
+        for name in all_files:
+            in_a = name in names_a
+            in_b = name in names_b
+
+            row = st.columns([5, 2, 2])
+            with row[0]:
                 st.write(f"{file_icon(name)} {name}")
-        else:
-            st.write("_Inga gemensamma filer_")
-
-        st.markdown("---")
-        st.markdown("### ❌ Filer som finns **endast i Version A**")
-        if only_a:
-            for name in only_a:
-                st.write(f"{file_icon(name)} {name}")
-        else:
-            st.write("_Inga unika filer i Version A_")
-
-        st.markdown("---")
-        st.markdown("### ❌ Filer som finns **endast i Version B**")
-        if only_b:
-            for name in only_b:
-                st.write(f"{file_icon(name)} {name}")
-        else:
-            st.write("_Inga unika filer i Version B_")
+            with row[1]:
+                st.write("✅ Ja" if in_a else "❌ Nej")
+            with row[2]:
+                st.write("✅ Ja" if in_b else "❌ Nej")
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
