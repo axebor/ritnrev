@@ -11,7 +11,7 @@ def get_icon_data_url(path):
     with open(path, "rb") as f:
         return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
 
-pdf_icon = get_icon_data_url("/mnt/data/3f75e029-4b50-46d8-af84-9a05d6917fbf.png")
+pdf_icon = get_icon_data_url("/mnt/data/930b0446-c8c4-4247-81fd-18b868e83728.png")
 zip_icon = get_icon_data_url("/mnt/data/Icons8-Windows-8-Files-Zip.512.png")
 
 # === Layout ===
