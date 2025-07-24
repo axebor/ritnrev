@@ -4,11 +4,12 @@ import zipfile
 import tempfile
 import pdfplumber
 from difflib import SequenceMatcher
-from pdf2image import convert_from_path
+from pdf2image import convert_from_bytes
 from PIL import ImageChops, Image
+import base64
+from io import BytesIO
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
-
 st.title("🔍 Jämför två versioner av handlingar")
 st.markdown("Ladda upp två PDF- eller ZIP-filer och klicka på **Jämför**.")
 
@@ -50,20 +51,37 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b):
+def image_to_base64(image):
+    buf = BytesIO()
+    image.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return f"data:image/png;base64,{b64}"
+
+def compare_images(path_a, path_b, dpi=200, threshold=10000):
     try:
-        images_a = convert_from_path(path_a, first_page=1, last_page=1, dpi=100)
-        images_b = convert_from_path(path_b, first_page=1, last_page=1, dpi=100)
+        with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
+            images_a = convert_from_bytes(f1.read(), dpi=dpi)
+            images_b = convert_from_bytes(f2.read(), dpi=dpi)
 
-        img_a = images_a[0].convert("RGB")
-        img_b = images_b[0].convert("RGB")
+        num_pages = min(len(images_a), len(images_b))
 
-        diff = ImageChops.difference(img_a, img_b)
-        bbox = diff.getbbox()
+        for i in range(num_pages):
+            img_a = images_a[i].convert("RGB")
+            img_b = images_b[i].convert("RGB")
 
-        return bbox is not None  # True om bild skiljer sig
-    except:
-        return False
+            if img_a.size != img_b.size:
+                return True, i + 1, img_a, img_b  # olika storlek
+
+            diff = ImageChops.difference(img_a, img_b)
+            diff_score = sum(sum(pixel) for pixel in diff.getdata())
+
+            if diff_score > threshold:
+                return True, i + 1, img_a, img_b
+
+        return False, None, None, None
+    except Exception as e:
+        print("Fel vid bildjämförelse:", e)
+        return False, None, None, None
 
 def file_icon(filename):
     return "📄" if filename.lower().endswith(".pdf") else "🗜️"
@@ -78,7 +96,6 @@ if file_a and file_b:
         all_files = sorted(names_a.union(names_b))
 
         st.markdown("### 📋 Jämförelsetabell")
-
         header = st.columns([4, 2, 2, 2, 3])
         header[0].markdown("**Filnamn**")
         header[1].markdown("**I Version A**")
@@ -104,9 +121,17 @@ if file_a and file_b:
                     with row[3]: st.write("⚠️")
                     with row[4]: st.write("Text ändrad")
                 else:
-                    image_changed = compare_images(pdfs_a[name], pdfs_b[name])
-                    with row[3]: st.write("⚠️" if image_changed else "–")
-                    with row[4]: st.write("Bild/ritning ändrad" if image_changed else "–")
+                    img_changed, page, img_a, img_b = compare_images(pdfs_a[name], pdfs_b[name])
+                    if img_changed:
+                        with row[3]: st.write("⚠️")
+                        with row[4]: st.write(f"Bild/ritning ändrad (sida {page})")
+                        with st.expander(f"🔍 Visa skillnad: {name} – Sida {page}"):
+                            col_a, col_b = st.columns(2)
+                            col_a.image(img_a, caption="Version A")
+                            col_b.image(img_b, caption="Version B")
+                    else:
+                        with row[3]: st.write("–")
+                        with row[4]: st.write("–")
             else:
                 with row[3]:
                     st.write("–")
