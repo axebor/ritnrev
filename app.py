@@ -19,10 +19,9 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-# --- Sidomeny: projektstruktur ---
+# --- Sidomeny: Projektstruktur med "filträd" ---
 st.sidebar.title("📁 Projekt")
 
-# Nytt projekt-knapp
 if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_project_form = True
 
@@ -42,16 +41,19 @@ if st.session_state.show_project_form:
             }
             st.session_state.active_project = project_id
             st.session_state.show_project_form = False
-            st.success(f"Projekt '{name}' skapat!")
+            st.rerun()  # Uppdatera vyn direkt
 
-# Lista projekt
+# Visa projektstruktur som "filträd"
 if st.session_state.projects:
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### 📂 Dina projekt")
     for pid, pdata in st.session_state.projects.items():
-        if st.sidebar.button(pdata["name"], key=pid):
-            st.session_state.active_project = pid
-            st.session_state.show_revision_form = False
+        with st.sidebar.expander(f"📁 {pdata['name']}", expanded=False):
+            if st.sidebar.button("📂 Öppna projekt", key=f"open_{pid}"):
+                st.session_state.active_project = pid
+                st.session_state.show_revision_form = False
+
+            for i, rev in enumerate(pdata["revisions"]):
+                if st.sidebar.button(f"🔄 {rev['title']}", key=f"{pid}_rev_{i}"):
+                    st.session_state.active_project = pid  # Kan byggas ut om du vill öppna revision direkt
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
@@ -71,7 +73,6 @@ if st.session_state.active_project:
 
     st.markdown("---")
 
-    # Ny revision
     if st.button("➕ Skapa ny revision"):
         st.session_state.show_revision_form = True
 
@@ -91,7 +92,7 @@ if st.session_state.active_project:
                 }
                 project["revisions"].append(revision)
                 st.session_state.show_revision_form = False
-                st.success(f"Revision '{rev_title}' skapad!")
+                st.rerun()
 
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
