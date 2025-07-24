@@ -6,8 +6,7 @@ import pdfplumber
 from difflib import SequenceMatcher
 from pdf2image import convert_from_bytes
 from PIL import ImageChops, Image
-from io import BytesIO
-import base64
+import hashlib
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -19,14 +18,20 @@ with col1:
 with col2:
     file_b = st.file_uploader("📁 Version B", type=["pdf", "zip"], key="file_b")
 
+def unique_key(file_name, file_bytes):
+    hash_val = hashlib.md5(file_bytes).hexdigest()[:8]
+    return f"{file_name}__{hash_val}"
+
 def extract_pdfs(file):
     result = {}
     if file.name.lower().endswith(".pdf"):
         temp_dir = tempfile.mkdtemp()
         path = os.path.join(temp_dir, file.name)
+        content = file.read()
         with open(path, "wb") as f:
-            f.write(file.read())
-        result[file.name] = path
+            f.write(content)
+        key = unique_key(file.name, content)
+        result[key] = path
     elif file.name.lower().endswith(".zip"):
         temp_dir = tempfile.mkdtemp()
         with zipfile.ZipFile(file, "r") as z:
@@ -34,8 +39,12 @@ def extract_pdfs(file):
         for root, _, files in os.walk(temp_dir):
             for f in files:
                 if f.lower().endswith(".pdf"):
-                    rel_path = os.path.relpath(os.path.join(root, f), temp_dir)
-                    result[rel_path.replace("\\", "/")] = os.path.join(root, f)
+                    full_path = os.path.join(root, f)
+                    with open(full_path, "rb") as fp:
+                        content = fp.read()
+                    rel_path = os.path.relpath(full_path, temp_dir)
+                    key = unique_key(rel_path, content)
+                    result[key] = full_path
     return result
 
 def extract_text(path):
@@ -65,7 +74,6 @@ def compare_images(path_a, path_b, dpi=300, threshold=1):
             img_b = images_b[i].convert("RGB")
 
             if img_a.size != img_b.size:
-                print(f"[{name}] Sida {i+1}: olika storlek – diff!")
                 return True, i + 1, img_a, img_b, 99999
 
             diff = ImageChops.difference(img_a, img_b)
@@ -89,9 +97,10 @@ if file_a and file_b:
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
 
-        names_a = set(pdfs_a.keys())
-        names_b = set(pdfs_b.keys())
-        all_files = sorted(names_a.union(names_b))
+        keys_a = {os.path.basename(k): v for k, v in pdfs_a.items()}
+        keys_b = {os.path.basename(k): v for k, v in pdfs_b.items()}
+
+        all_filenames = sorted(set(keys_a.keys()).union(set(keys_b.keys())))
 
         st.markdown("### 📋 Jämförelsetabell")
         header = st.columns([4, 2, 2, 2, 3])
@@ -101,25 +110,24 @@ if file_a and file_b:
         header[3].markdown("**Skillnad i innehåll**")
         header[4].markdown("**Typ av skillnad**")
 
-        for name in all_files:
-            in_a = name in pdfs_a
-            in_b = name in pdfs_b
+        for name in all_filenames:
+            in_a = name in keys_a
+            in_b = name in keys_b
             row = st.columns([4, 2, 2, 2, 3])
 
-            with row[0]:
-                st.write(f"{file_icon(name)} {name}")
-            with row[1]:
-                st.write("✅ Ja" if in_a else "❌ Nej")
-            with row[2]:
-                st.write("✅ Ja" if in_b else "❌ Nej")
+            with row[0]: st.write(f"{file_icon(name)} {name}")
+            with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
+            with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
             if in_a and in_b:
-                text_changed = compare_text(pdfs_a[name], pdfs_b[name])
+                path_a = keys_a[name]
+                path_b = keys_b[name]
+                text_changed = compare_text(path_a, path_b)
                 if text_changed:
                     with row[3]: st.write("⚠️")
                     with row[4]: st.write("Text ändrad")
                 else:
-                    img_changed, page, img_a, img_b, score = compare_images(pdfs_a[name], pdfs_b[name])
+                    img_changed, page, img_a, img_b, score = compare_images(path_a, path_b)
                     if img_changed:
                         with row[3]: st.write("⚠️")
                         with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score}")
