@@ -1,51 +1,37 @@
 import streamlit as st
-import os
-import zipfile
-import tempfile
+import base64
 
-st.set_page_config(page_title="PDF-jämförelse", layout="wide")
+st.set_page_config(layout="centered")
+st.title("📄 Compare PDF Content")
 
-st.title("🔍 Jämför två versioner av handlingar")
-st.markdown("Ladda upp två PDF- eller ZIP-filer och klicka på **Jämför**.")
+# PDF-ikon (konverterad till base64)
+pdf_icon_base64 = "iVBORw0KGgoAAAANSUhEUgAAACoAAAAsCAYAAADwEswLAAAACXBIWXMAAAsTAAALEwEAmpwYAAABUUlEQVR4nO2YQUoDQRRF/0Yys1HyKkEJpV0pyD8lM+hg1T0AS9gpzv7DwIQK1qTiG8d3HD/MdAx4Sm+znQCIgiAIgiAIgiAIgiAIgt8BG9Bd9SuDADrsD3rszBaE9p9jTxDxeyS9n2NHMYDuoyM4wAZzgDzmt9EDP8gGXaXEQWc1QJeP8ERHcFM8yNcCGcIhQL3WAVUG4CMcI7ULZQnLyz7r6q0v+NTV64xHaHwQ2NpyAgbFSy2mnkNaVxPy9Xz+gI/xULIJZx+AHmi+ILaOq0svfHXB0pRBmbs7px+jv95DT+M3zw2s4acVbRUX9/jBDv3S0fz+z09X0feQ92EBt/tY2QYjAAAAAElFTkSuQmCC"
 
+# Funktion för att visa filnamn med ikon
+def display_file_with_icon(file):
+    icon_html = f'<img src="data:image/png;base64,{pdf_icon_base64}" width="20" style="margin-right: 6px; vertical-align: middle;" />'
+    st.markdown(f"{icon_html} **{file.name}**", unsafe_allow_html=True)
+
+# Filuppladdning
 col1, col2 = st.columns(2)
 
 with col1:
-    file_a = st.file_uploader("📄 Version A", type=["pdf", "zip"], key="file_a")
+    file1 = st.file_uploader("Upload first PDF", type="pdf", key="file1")
+
 with col2:
-    file_b = st.file_uploader("📄 Version B", type=["pdf", "zip"], key="file_b")
+    file2 = st.file_uploader("Upload second PDF", type="pdf", key="file2")
 
-def extract_pdf_names(file):
-    if file.name.lower().endswith(".pdf"):
-        return [file.name]
-    elif file.name.lower().endswith(".zip"):
-        temp_dir = tempfile.mkdtemp()
-        with zipfile.ZipFile(file, "r") as z:
-            z.extractall(temp_dir)
-        pdfs = [f for f in os.listdir(temp_dir) if f.lower().endswith(".pdf")]
-        return sorted(pdfs)
-    else:
-        return []
+# Visa filinformation
+if file1 and file2:
+    st.markdown("---")
+    st.subheader("📂 Selected Files")
+    display_file_with_icon(file1)
+    display_file_with_icon(file2)
 
-if file_a and file_b:
-    if st.button("🔍 Jämför"):
-        names_a = extract_pdf_names(file_a)
-        names_b = extract_pdf_names(file_b)
+    st.markdown("---")
+    st.button("🔍 Compare content", use_container_width=True)
 
-        st.markdown("### 📋 Jämförelseresultat")
-
-        all_files = sorted(set(names_a).union(set(names_b)))
-
-        for name in all_files:
-            in_a = name in names_a
-            in_b = name in names_b
-
-            col1, col2, col3 = st.columns([5, 1, 1])
-            with col1:
-                st.write(f"📄 {name}")
-            with col2:
-                st.write("✅" if in_a else "❌")
-            with col3:
-                st.write("✅" if in_b else "❌")
+elif file1 or file2:
+    st.info("Please upload two PDF files to compare.")
 else:
-    st.info("Ladda upp två filer för att kunna jämföra.")
+    st.info("Upload two PDF files for comparison.")
