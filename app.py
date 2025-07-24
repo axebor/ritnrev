@@ -6,8 +6,8 @@ import pdfplumber
 from difflib import SequenceMatcher
 from pdf2image import convert_from_bytes
 from PIL import ImageChops, Image
-import base64
 from io import BytesIO
+import base64
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -51,9 +51,9 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b, dpi=800, threshold=1):
+def compare_images(path_a, path_b, dpi=300, threshold=1):
+    name = os.path.basename(path_a)
     try:
-        name = os.path.basename(path_a)
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
             images_a = convert_from_bytes(f1.read(), dpi=dpi)
             images_b = convert_from_bytes(f2.read(), dpi=dpi)
@@ -70,15 +70,15 @@ def compare_images(path_a, path_b, dpi=800, threshold=1):
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
-
             print(f"[{name}] Sida {i+1} – diff_score: {diff_score}")
 
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
 
         return False, None, None, None, 0
+
     except Exception as e:
-        print("Fel vid bildjämförelse:", e)
+        print(f"[{name}] Bildjämförelse fel:", e)
         return False, None, None, None, 0
 
 def file_icon(filename):
@@ -122,17 +122,16 @@ if file_a and file_b:
                     img_changed, page, img_a, img_b, score = compare_images(pdfs_a[name], pdfs_b[name])
                     if img_changed:
                         with row[3]: st.write("⚠️")
-                        with row[4]: st.write(f"Bild/ritning ändrad (sida {page})")
-                        with st.expander(f"🔍 Visa skillnad: {name} – Sida {page} (diff-score: {score})"):
-                            col_a, col_b = st.columns(2)
-                            col_a.image(img_a, caption="Version A")
-                            col_b.image(img_b, caption="Version B")
+                        with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score}")
+                        with st.expander(f"🔍 Visa skillnad (sida {page})"):
+                            col1, col2 = st.columns(2)
+                            col1.image(img_a, caption="Version A")
+                            col2.image(img_b, caption="Version B")
                     else:
                         with row[3]: st.write("–")
                         with row[4]: st.write("–")
             else:
-                with row[3]:
-                    st.write("–")
+                with row[3]: st.write("–")
                 with row[4]:
                     st.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 else:
