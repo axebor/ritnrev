@@ -51,7 +51,7 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b, dpi=200, threshold=1):
+def compare_images(path_a, path_b, dpi=800, threshold=1):
     try:
         name = os.path.basename(path_a)
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
