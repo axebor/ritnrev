@@ -1,7 +1,4 @@
 import streamlit as st
-import os
-import zipfile
-import tempfile
 from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
@@ -19,8 +16,8 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-if "last_created_project" not in st.session_state:
-    st.session_state.last_created_project = None
+if "project_created" not in st.session_state:
+    st.session_state.project_created = None
 
 # --- Sidomeny ---
 st.sidebar.title("📁 Projekt")
@@ -32,10 +29,14 @@ if st.sidebar.button("➕ Nytt projekt"):
 # Formulär: skapa projekt
 if st.session_state.show_project_form:
     with st.sidebar.container():
-        top_row = st.columns([6, 1])
-        with top_row[1]:
-            if st.button("❌", key="close_project_form"):
-                st.session_state.show_project_form = False
+        st.markdown(
+            """
+            <div style='display: flex; justify-content: flex-end; margin-bottom: -1.5em;'>
+                <button onclick="window.location.reload()" style='background: none; border: none; color: #555; font-size: 16px; cursor: pointer;'>&#10005;</button>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         with st.form("create_project"):
             name = st.text_input("Projektnamn")
@@ -57,9 +58,8 @@ if st.session_state.show_project_form:
                     "revisions": []
                 }
                 st.session_state.active_project = project_id
-                st.session_state.last_created_project = name
+                st.session_state.project_created = name
                 st.session_state.show_project_form = False
-                st.experimental_rerun()
 
 # Lista projekt
 if st.session_state.projects:
@@ -73,7 +73,6 @@ if st.session_state.projects:
             del st.session_state.projects[pid]
             if st.session_state.active_project == pid:
                 st.session_state.active_project = None
-            st.experimental_rerun()
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
@@ -81,9 +80,9 @@ st.title("RitnRev")
 if st.session_state.active_project:
     project = st.session_state.projects[st.session_state.active_project]
 
-    if st.session_state.last_created_project == project["name"]:
+    if st.session_state.project_created == project["name"]:
         st.success(f"Projekt '{project['name']}' skapat!")
-        st.session_state.last_created_project = None
+        st.session_state.project_created = None
 
     st.subheader(f"📄 Projekt: {project['name']}")
     st.write(project["description"])
