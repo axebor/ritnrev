@@ -19,19 +19,20 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-# --- Funktioner för att radera ---
+if "last_created_project" not in st.session_state:
+    st.session_state.last_created_project = None
+
+# --- Funktioner ---
 def delete_project(pid):
     st.session_state.projects.pop(pid, None)
     if st.session_state.active_project == pid:
         st.session_state.active_project = None
-        st.session_state.show_revision_form = False
         st.session_state.show_project_form = False
-    st.experimental_rerun()
+        st.session_state.show_revision_form = False
 
 def delete_revision(project_id, index):
     st.session_state.projects[project_id]["revisions"].pop(index)
     st.session_state.show_revision_form = False
-    st.experimental_rerun()
 
 # --- Sidomeny ---
 st.sidebar.title("📁 Projekt")
@@ -58,12 +59,15 @@ if st.session_state.show_project_form:
             }
             st.session_state.active_project = project_id
             st.session_state.show_project_form = False
-            st.success(f"Projekt '{name}' skapat!")
-            st.experimental_rerun()
+            st.session_state.last_created_project = name
 
         if cancel:
             st.session_state.show_project_form = False
-            st.experimental_rerun()
+
+# Meddelande vid lyckad projekt-skapning
+if st.session_state.last_created_project:
+    st.sidebar.success(f"Projekt '{st.session_state.last_created_project}' skapat!")
+    st.session_state.last_created_project = None
 
 # Lista projekt
 if st.session_state.projects:
@@ -122,11 +126,9 @@ if st.session_state.active_project:
                 project["revisions"].append(revision)
                 st.session_state.show_revision_form = False
                 st.success(f"Revision '{rev_title}' skapad!")
-                st.experimental_rerun()
 
             if cancel:
                 st.session_state.show_revision_form = False
-                st.experimental_rerun()
 
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
