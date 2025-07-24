@@ -3,6 +3,9 @@ import uuid
 import pdfplumber
 import difflib
 import pandas as pd
+import zipfile
+import tempfile
+import os
 
 st.set_page_config(layout="wide")
 
@@ -15,8 +18,6 @@ if "create_project_mode" not in st.session_state:
     st.session_state.create_project_mode = False
 if "create_revision_mode" not in st.session_state:
     st.session_state.create_revision_mode = False
-if "compare_revision_mode" not in st.session_state:
-    st.session_state.compare_revision_mode = False
 
 # Funktioner
 def create_project(name, description):
@@ -42,11 +43,23 @@ def close_project_form():
     st.rerun()
 
 def create_revision(project_id, title, note, files):
+    revision_files = []
+    for uploaded_file in files or []:
+        if uploaded_file.name.endswith('.pdf'):
+            revision_files.append(uploaded_file)
+        elif uploaded_file.name.endswith('.zip'):
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
+                    zip_ref.extractall(tmp_dir)
+                    pdf_files = [f for f in os.listdir(tmp_dir) if f.endswith('.pdf')]
+                    for pdf in pdf_files:
+                        with open(os.path.join(tmp_dir, pdf), 'rb') as f:
+                            revision_files.append(f.read())
     revision = {
         "id": str(uuid.uuid4()),
         "title": title,
         "note": note,
-        "files": files
+        "files": revision_files
     }
     st.session_state.projects[project_id]["revisions"].append(revision)
     st.session_state.create_revision_mode = False
@@ -81,7 +94,6 @@ with st.sidebar:
     if st.button("➕ Skapa nytt projekt", key="create_project_btn", use_container_width=True):
         st.session_state.create_project_mode = True
         st.session_state.active_project = None
-        st.session_state.compare_revision_mode = False
         st.rerun()
 
     st.markdown("---")
@@ -94,7 +106,6 @@ with st.sidebar:
                 st.session_state.active_project = pid
                 st.session_state.create_project_mode = False
                 st.session_state.create_revision_mode = False
-                st.session_state.compare_revision_mode = False
                 st.rerun()
         with c2:
             if st.button("✕", key=f"delproj_{pid}", help="Ta bort projekt"):
@@ -141,86 +152,61 @@ elif st.session_state.active_project:
                 if st.form_submit_button("Stäng"):
                     st.session_state.create_revision_mode = False
                     st.rerun()
-    # Jämför revisioner
-    elif st.session_state.compare_revision_mode:
-        st.markdown("### Jämför revisioner")
-        revisions = project["revisions"]
-        if len(revisions) < 2:
-            st.warning("Du behöver minst två revisioner för att jämföra.")
-            if st.button("Stäng", key="close_compare"):
-                st.session_state.compare_revision_mode = False
-                st.rerun()
-        else:
-            with st.form("compare_revisions_form"):
-                rev_options = {rev["title"]: rev for rev in revisions}
-                rev1_title = st.selectbox("Välj första revisionen", list(rev_options.keys()), key="rev1")
-                rev2_title = st.selectbox("Välj andra revisionen", list(rev_options.keys()), key="rev2")
-                
-                # Om revisionerna har flera filer, låt användaren välja vilka
-                rev1 = rev_options[rev1_title]
-                rev2 = rev_options[rev2_title]
-                if rev1["files"] and rev2["files"]:
-                    file1_options = [f.name for f in rev1["files"] if f.name.endswith(".pdf")]
-                    file2_options = [f.name for f in rev2["files"] if f.name.endswith(".pdf")]
-                    if file1_options and file2_options:
-                        file1_name = st.selectbox("Välj PDF från första revisionen", file1_options, key="file1")
-                        file2_name = st.selectbox("Välj PDF från andra revisionen", file2_options, key="file2")
-                    else:
-                        st.error("En eller båda revisionerna saknar PDF-filer.")
-                        file1_name, file2_name = None, None
-                else:
-                    st.error("En eller båda revisionerna saknar filer.")
-                    file1_name, file2_name = None, None
-
-                if st.form_submit_button("Jämför"):
-                    if file1_name and file2_name and rev1_title != rev2_title:
-                        # Hitta filobjekten
-                        file1 = next(f for f in rev1["files"] if f.name == file1_name)
-                        file2 = next(f for f in rev2["files"] if f.name == file2_name)
-                        
-                        # Extrahera text
-                        st.write("Jämför filerna...")
-                        text1 = extract_text_from_pdf(file1)
-                        text2 = extract_text_from_pdf(file2)
-                        
-                        if text1 and text2:
-                            # Jämför texterna
-                            diff = compare_texts(text1, text2)
-                            diff_data = [{"Skillnad": line} for line in diff if line.startswith('+ ') or line.startswith('- ')]
-                            
-                            if diff_data:
-                                df = pd.DataFrame(diff_data)
-                                st.dataframe(df)
-                                # Exportera till CSV
-                                csv = df.to_csv(index=False)
-                                st.download_button("Ladda ner skillnader som CSV", csv, f"skillnader_{rev1_title}_vs_{rev2_title}.csv")
-                            else:
-                                st.info("Inga skillnader hittades.")
-                        else:
-                            st.error("Kunde inte extrahera text från en eller båda filerna.")
-                    else:
-                        st.error("Välj två olika revisioner och giltiga PDF-filer.")
-                
-                if st.form_submit_button("Stäng"):
-                    st.session_state.compare_revision_mode = False
-                    st.rerun()
     else:
         st.button("➕ Skapa ny revision", key="create_revision_btn", on_click=lambda: st.session_state.update(create_revision_mode=True))
-        st.button("🔍 Jämför revisioner", key="compare_revision_btn", on_click=lambda: st.session_state.update(compare_revision_mode=True))
 
-    # Visa revisioner
+    # Visa revisioner och jämförelse
     st.markdown("### 📌 Revisioner")
+    selected_revisions = []
     for rev in project["revisions"]:
         with st.expander(f"🔍 {rev['title']}"):
             st.write(rev["note"])
             if rev["files"]:
                 st.markdown("**Filer:**")
                 for f in rev["files"]:
-                    st.write(f"📄 {f.name}")
+                    st.write(f"📄 {f.name if hasattr(f, 'name') else 'PDF från ZIP'}")
             else:
                 st.info("Inga filer uppladdade.")
+            if st.checkbox("Välj för jämförelse", key=f"select_{rev['id']}"):
+                selected_revisions.append(rev)
             if st.button("❌ Ta bort revision", key=f"delrev_{rev['id']}"):
                 delete_revision(st.session_state.active_project, rev['id'])
+
+    if len(selected_revisions) == 2 and st.button("Jämför"):
+        rev1, rev2 = selected_revisions
+        st.markdown("### Jämförelse av revisioner")
+        with st.spinner("Jämför filer, det kan ta en stund..."):
+            if rev1["files"] and rev2["files"]:
+                # Välj PDF-filer om flera finns
+                file1_options = [f.name if hasattr(f, 'name') else f"PDF_{i}" for i, f in enumerate(rev1["files"])]
+                file2_options = [f.name if hasattr(f, 'name') else f"PDF_{i}" for i, f in enumerate(rev2["files"])]
+                file1_idx = st.selectbox("Välj PDF från första revisionen", range(len(rev1["files"])), format_func=lambda x: file1_options[x])
+                file2_idx = st.selectbox("Välj PDF från andra revisionen", range(len(rev2["files"])), format_func=lambda x: file2_options[x])
+
+                file1 = rev1["files"][file1_idx]
+                file2 = rev2["files"][file2_idx]
+                
+                text1 = extract_text_from_pdf(file1)
+                text2 = extract_text_from_pdf(file2)
+                
+                if text1 and text2:
+                    diff = compare_texts(text1, text2)
+                    diff_data = [{"Skillnad": line} for line in diff if line.startswith('+ ') or line.startswith('- ')]
+                    if diff_data:
+                        df = pd.DataFrame(diff_data)
+                        st.dataframe(df)
+                        csv = df.to_csv(index=False)
+                        st.download_button("Ladda ner skillnader som CSV", csv, f"skillnader_{rev1['title']}_vs_{rev2['title']}.csv")
+                    else:
+                        st.info("Inga skillnader hittades.")
+                else:
+                    st.error("Kunde inte extrahera text från en eller båda filerna.")
+            else:
+                st.error("En eller båda revisionerna saknar filer.")
+    elif len(selected_revisions) > 2:
+        st.warning("Välj exakt två revisioner för jämförelse.")
+    elif len(selected_revisions) == 0:
+        st.info("Välj två revisioner att jämföra genom att bocka i dem.")
 
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
