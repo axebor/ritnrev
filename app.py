@@ -64,7 +64,6 @@ def compare_images(path_a, path_b, dpi=150, threshold=10000):
             img_a = images_a[i].convert("RGB")
             img_b = images_b[i].convert("RGB")
 
-            # Skala om bilder till samma storlek om de skiljer sig
             if img_a.size != img_b.size:
                 st.warning(f"Sida {i+1}: Bilderna har olika storlekar. Skalar om till minsta storlek.")
                 min_size = (min(img_a.size[0], img_b.size[0]), min(img_a.size[1], img_b.size[1]))
@@ -72,16 +71,14 @@ def compare_images(path_a, path_b, dpi=150, threshold=10000):
                 img_b = img_b.resize(min_size, Image.Resampling.LANCZOS)
 
             diff = ImageChops.difference(img_a, img_b)
-            diff_score = sum(sum(pixel) for pixel in diff.getdata())
-            st.write(f"[{os.path.basename(path_a)}] Sida {i+1} – diff_score: {diff_score}")
+            diff_score = sum(sum(pixel) for pixel in diff.getdata()) / (img_a.size[0] * img_a.size[1])  # Normaliserad diff_score
+            st.write(f"[{os.path.basename(path_a)}] Sida {i+1} – diff_score: {diff_score:.2f}")
 
-            # Normalisera diff_score baserat på bildstorlek
-            normalized_score = diff_score / (img_a.size[0] * img_a.size[1])
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
         return False, None, None, None, 0
     except Exception as e:
-        st.error(f"Fel vid bildjämförelse för {path_a}: {e}")
+        st.error(f"Fel vid bildjämförelse för {path_a}: {str(e)}. Kontrollera att poppler är installerat och i PATH.")
         return False, None, None, None, 0
 
 def file_icon(filename):
@@ -120,11 +117,11 @@ if file_a and file_b:
                 if text_changed or img_changed:
                     with row[3]: st.write("⚠️")
                     if text_changed and img_changed:
-                        with row[4]: st.write(f"Text och bild ändrad (sida {page}) – diff_score: {score}")
+                        with row[4]: st.write(f"Text och bild ändrad (sida {page}) – diff_score: {score:.2f}")
                     elif text_changed:
                         with row[4]: st.write("Text ändrad")
                     elif img_changed:
-                        with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score}")
+                        with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score:.2f}")
                     if img_changed:
                         with st.expander(f"🔍 Visa skillnad (sida {page})"):
                             col1, col2 = st.columns(2)
