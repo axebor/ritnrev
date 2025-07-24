@@ -2,3 +2,4 @@ streamlit
 pdfplumber
 pdf2image
 Pillow
+poppler
