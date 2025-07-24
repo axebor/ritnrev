@@ -3,31 +3,31 @@ import uuid
 
 st.set_page_config(layout="wide")
 
-# === INITIERA SESSION STATE ===
+# Initiera session state
 if "projects" not in st.session_state:
     st.session_state.projects = {}
-
 if "active_project" not in st.session_state:
     st.session_state.active_project = None
-
 if "create_project_mode" not in st.session_state:
     st.session_state.create_project_mode = False
-
+if "create_revision_mode" not in st.session_state:
+    st.session_state.create_revision_mode = False
 if "compare_mode" not in st.session_state:
     st.session_state.compare_mode = False
+if "compare_selection" not in st.session_state:
+    st.session_state.compare_selection = []
 
-
-# === FUNKTIONER ===
+# Funktioner
 def create_project(name, description):
     project_id = str(uuid.uuid4())
     st.session_state.projects[project_id] = {
         "name": name,
         "description": description,
-        "revisions": {}
+        "revisions": []
     }
     st.session_state.active_project = project_id
     st.session_state.create_project_mode = False
-
+    st.rerun()
 
 def delete_project(pid):
     if pid in st.session_state.projects:
@@ -36,27 +36,25 @@ def delete_project(pid):
             st.session_state.active_project = None
     st.rerun()
 
-
 def close_project_form():
     st.session_state.create_project_mode = False
     st.rerun()
 
-
-def create_revision(title, date, files):
-    rev_id = str(uuid.uuid4())
-    st.session_state.projects[st.session_state.active_project]["revisions"][rev_id] = {
+def create_revision(project_id, title, note, files):
+    revision = {
+        "id": str(uuid.uuid4()),
         "title": title,
-        "date": date,
+        "note": note,
         "files": files
     }
+    st.session_state.projects[project_id]["revisions"].append(revision)
+    st.session_state.create_revision_mode = False
     st.rerun()
 
-
-def delete_revision(rid):
-    if rid in st.session_state.projects[st.session_state.active_project]["revisions"]:
-        del st.session_state.projects[st.session_state.active_project]["revisions"][rid]
+def delete_revision(project_id, revision_id):
+    project = st.session_state.projects[project_id]
+    project["revisions"] = [r for r in project["revisions"] if r["id"] != revision_id]
     st.rerun()
-
 
 # === SIDOMENY ===
 with st.sidebar:
@@ -75,11 +73,12 @@ with st.sidebar:
             if st.button(pdata["name"], key=f"select_{pid}"):
                 st.session_state.active_project = pid
                 st.session_state.create_project_mode = False
+                st.session_state.create_revision_mode = False
+                st.session_state.compare_mode = False
                 st.rerun()
         with c2:
             if st.button("✕", key=f"delproj_{pid}", help="Ta bort projekt"):
                 delete_project(pid)
-
 
 # === HUVUDFÖNSTER ===
 if st.session_state.create_project_mode:
@@ -89,66 +88,75 @@ if st.session_state.create_project_mode:
         description = st.text_area("Beskrivning", key="project_description")
         col1, col2 = st.columns([1, 5])
         with col1:
-            if st.form_submit_button("Skapa projekt", use_container_width=True):
+            if st.form_submit_button("Skapa projekt"):
                 if name.strip() != "":
                     create_project(name.strip(), description.strip())
-                    st.rerun()
                 else:
                     st.error("Projektnamn får inte vara tomt!")
         with col2:
-            if st.form_submit_button("Stäng", use_container_width=True):
+            if st.form_submit_button("Stäng"):
                 close_project_form()
 
 elif st.session_state.active_project:
-    project = st.session_state.projects.get(st.session_state.active_project)
-    if project:
-        st.subheader(f"📄 Projekt: {project['name']}")
-        st.caption(project["description"])
+    project = st.session_state.projects[st.session_state.active_project]
+    st.subheader(f"📄 Projekt: {project['name']}")
+    st.write(project["description"])
 
-        st.markdown("### 📌 Revisioner")
+    # Ny revision
+    if st.session_state.create_revision_mode:
+        st.markdown("### Skapa ny revision")
+        with st.form("create_revision_form"):
+            title = st.text_input("Revisionsnamn")
+            note = st.text_area("Anteckning / syfte")
+            files = st.file_uploader("Ladda upp PDF- eller ZIP-filer", type=["pdf", "zip"], accept_multiple_files=True)
 
-        col1, col2 = st.columns([1, 2])
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                if st.form_submit_button("Spara revision"):
+                    if title.strip() != "":
+                        create_revision(st.session_state.active_project, title.strip(), note, files)
+                    else:
+                        st.error("Revisionsnamn krävs.")
+            with col2:
+                if st.form_submit_button("Stäng"):
+                    st.session_state.create_revision_mode = False
+                    st.rerun()
+    else:
+        st.button("➕ Skapa ny revision", key="create_revision_btn", on_click=lambda: st.session_state.update(create_revision_mode=True))
+
+    # Jämför revisioner
+    if len(project["revisions"]) >= 2:
+        st.markdown("### 🧪 Jämför revisioner")
+        rev_titles = [rev["title"] for rev in project["revisions"]]
+        col1, col2 = st.columns(2)
         with col1:
-            if st.button("➕ Skapa ny revision", key="create_revision_btn"):
-                with st.form("new_rev_form"):
-                    title = st.text_input("Titel")
-                    date = st.date_input("Datum")
-                    uploaded = st.file_uploader("Ladda upp filer", accept_multiple_files=True)
-                    submit = st.form_submit_button("Spara")
-                    if submit:
-                        create_revision(title, str(date), [f.name for f in uploaded])
-
+            rev1 = st.selectbox("Revision 1", rev_titles, key="rev1")
         with col2:
-            if st.button("🔍 Jämför revisioner", key="compare_btn"):
-                st.session_state.compare_mode = not st.session_state.compare_mode
+            rev2 = st.selectbox("Revision 2", rev_titles, key="rev2")
 
-        for rid, rdata in project.get("revisions", {}).items():
-            with st.expander(f"{rdata['title']}", expanded=True):
-                st.write(f"Inkommet underlag {rdata['date']}")
-                st.markdown("**Filer:**")
-                for fname in rdata["files"]:
-                    st.write(f"📄 {fname}")
-                if st.button("❌ Ta bort revision", key=f"delrev_{rid}"):
-                    delete_revision(rid)
-
-        # === JÄMFÖRELSE ===
-        if st.session_state.compare_mode:
-            revs = list(project["revisions"].values())
-            if len(revs) < 2:
-                st.warning("Minst två revisioner krävs för jämförelse.")
+        if st.button("🔍 Jämför"):
+            r1 = next((r for r in project["revisions"] if r["title"] == rev1), None)
+            r2 = next((r for r in project["revisions"] if r["title"] == rev2), None)
+            if r1 and r2:
+                st.success("Revisioner valda. Här är en enkel jämförelse:")
+                st.markdown(f"**{r1['title']}**: {len(r1['files']) if r1['files'] else 0} filer")
+                st.markdown(f"**{r2['title']}**: {len(r2['files']) if r2['files'] else 0} filer")
             else:
-                st.markdown("### 🔍 Resultat av jämförelse")
-                old = set(revs[-2]["files"])
-                new = set(revs[-1]["files"])
-                added = new - old
-                removed = old - new
+                st.warning("Kunde inte hitta båda revisionerna.")
 
-                st.write("**➕ Tillagda filer:**")
-                for f in added:
-                    st.write(f"📄 {f}")
-                st.write("**➖ Borttagna filer:**")
-                for f in removed:
-                    st.write(f"📄 {f}")
+    # Visa revisioner
+    st.markdown("### 📌 Revisioner")
+    for rev in project["revisions"]:
+        with st.expander(f"🔍 {rev['title']}"):
+            st.write(rev["note"])
+            if rev["files"]:
+                st.markdown("**Filer:**")
+                for f in rev["files"]:
+                    st.write(f"📄 {f.name}")
+            else:
+                st.info("Inga filer uppladdade.")
+            if st.button("❌ Ta bort revision", key=f"delrev_{rev['id']}"):
+                delete_revision(st.session_state.active_project, rev["id"])
 
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
