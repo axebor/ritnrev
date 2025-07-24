@@ -1,4 +1,5 @@
 streamlit
 pdfplumber
 pdf2image
-Pillowpdfplumber
+Pillow
+pdfplumber
