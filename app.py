@@ -6,13 +6,13 @@ import base64
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 
-# === Ikoner (uppdatera sökvägar här) ===
+# === Ikoner ===
 def get_icon_data_url(path):
     with open(path, "rb") as f:
         return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
 
-pdf_icon = get_icon_data_url("/mnt/data/23399bc7-ab5d-47e3-b02a-0e670e12e516.png")
-zip_icon = get_icon_data_url("/mnt/data/Icons8-Windows-8-Files-Zip.512.png")  # Denna fil laddade du upp tidigare
+pdf_icon = get_icon_data_url("/mnt/data/3f75e029-4b50-46d8-af84-9a05d6917fbf.png")
+zip_icon = get_icon_data_url("/mnt/data/Icons8-Windows-8-Files-Zip.512.png")
 
 # === Layout ===
 st.title("🔍 Jämför två versioner av handlingar")
@@ -24,7 +24,7 @@ with col1:
 with col2:
     file_b = st.file_uploader("📄 Version B", type=["pdf", "zip"], key="file_b")
 
-# === Extrahera PDF-namn från fil ===
+# === Extrahera PDF-filer ===
 def extract_pdf_names(file):
     if file.name.lower().endswith(".pdf"):
         return [file.name]
@@ -37,7 +37,7 @@ def extract_pdf_names(file):
     else:
         return []
 
-# === Jämförelsefunktion ===
+# === Jämför-knapp ===
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         names_a = extract_pdf_names(file_a)
@@ -52,7 +52,10 @@ if file_a and file_b:
 
             col1, col2, col3 = st.columns([5, 1, 1])
             with col1:
-                st.markdown(f'<img src="{icon}" width="20" style="vertical-align:middle; margin-right:8px;"> {name}', unsafe_allow_html=True)
+                st.markdown(
+                    f'<img src="{icon}" width="20" style="vertical-align:middle; margin-right:8px;"> {name}',
+                    unsafe_allow_html=True
+                )
             with col2:
                 st.write("✅" if in_a else "❌")
             with col3:
