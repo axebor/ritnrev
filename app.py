@@ -1,3 +1,19 @@
+# --- Anpassa sidomenyn via CSS ---
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        min-width: 300px !important;
+        max-width: 300px !important;
+        width: fit-content !important;
+        resize: none !important;
+    }
+    [data-testid="stSidebar"] section {
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 import streamlit as st
 from uuid import uuid4
 
