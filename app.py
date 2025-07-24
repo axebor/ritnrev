@@ -1,9 +1,9 @@
 import streamlit as st
-import uuid
+from uuid import uuid4
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="RitnRev", layout="wide")
 
-# Initiera session state
+# --- Session state ---
 if "projects" not in st.session_state:
     st.session_state.projects = {}
 if "active_project" not in st.session_state:
@@ -11,97 +11,94 @@ if "active_project" not in st.session_state:
 if "show_modal" not in st.session_state:
     st.session_state.show_modal = False
 
-# --- Funktioner ---
-def create_project(name, description):
-    pid = str(uuid.uuid4())
-    st.session_state.projects[pid] = {
-        "name": name,
-        "description": description,
-        "revisions": []
-    }
+# --- Helper functions ---
+def add_project(name, desc):
+    pid = str(uuid4())
+    st.session_state.projects[pid] = {"name": name, "description": desc, "revisions": []}
     st.session_state.active_project = pid
     st.session_state.show_modal = False
 
 def delete_project(pid):
-    if pid in st.session_state.projects:
-        del st.session_state.projects[pid]
-        if st.session_state.active_project == pid:
-            st.session_state.active_project = None
+    st.session_state.projects.pop(pid, None)
+    if st.session_state.active_project == pid:
+        st.session_state.active_project = None
 
-# --- Sidopanel ---
-st.sidebar.markdown("### 📁 Projekt")
-if st.sidebar.button("+ Nytt projekt"):
+# --- Sidebar ---
+st.sidebar.title("📁 Projekt")
+if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_modal = True
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("#### 📁 Dina projekt")
+st.sidebar.markdown("### 📂 Dina projekt")
 for pid, pdata in st.session_state.projects.items():
-    cols = st.sidebar.columns([5, 1])
-    if cols[0].button(pdata["name"], key=f"select_{pid}"):
-        st.session_state.active_project = pid
-    if cols[1].button("x", key=f"delete_{pid}"):
-        delete_project(pid)
-        st.experimental_rerun()
+    c1, c2 = st.sidebar.columns([5,1])
+    with c1:
+        if st.button(pdata["name"], key=pid):
+            st.session_state.active_project = pid
+    with c2:
+        if st.button("✕", key=f"del_{pid}", help="Ta bort projekt"):
+            delete_project(pid)
 
-# --- Modal ---
+# --- Modal overlay + box ---
 if st.session_state.show_modal:
-    modal_style = """
+    # Overlay
+    overlay_css = """
     <style>
-    .modal-overlay {
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        background-color: rgba(0, 0, 0, 0.4);
-        z-index: 999;
-    }
-    .modal-box {
-        position: fixed;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        padding: 2rem;
-        border-radius: 12px;
-        box-shadow: 0 0 20px rgba(0,0,0,0.3);
-        width: 400px;
-        z-index: 1000;
-    }
-    .modal-close {
-        position: absolute;
-        top: 10px; right: 15px;
-        font-size: 18px;
-        color: #666;
-        cursor: pointer;
-    }
+      .overlay {
+        position: fixed; top:0; left:0; right:0; bottom:0;
+        background: rgba(0,0,0,0.4); z-index: 98;
+      }
+      .modal {
+        position: fixed; top:50%; left:50%;
+        transform: translate(-50%,-50%);
+        background: #fff; padding: 2rem; border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 99;
+        width: 360px;
+      }
+      .close-btn {
+        position: absolute; top:8px; right:12px;
+        font-size: 18px; color:#666; cursor:pointer;
+      }
+      .close-btn:hover {color:#000;}
     </style>
-    <div class="modal-overlay"></div>
-    <div class="modal-box">
-        <span class="modal-close" onclick="document.querySelector('button[data-testid=\'modal-close\']').click()">&times;</span>
-        <form action="" method="post">
-            <label>Projektnamn</label><br>
-            <input name="pname" style="width: 100%; padding: 8px;"><br><br>
-            <label>Beskrivning</label><br>
-            <textarea name="pdesc" style="width: 100%; height: 100px; padding: 8px;"></textarea><br><br>
-            <button type="submit">Skapa projekt</button>
-        </form>
-        <button style="display:none;" data-testid="modal-close" onClick="">Stäng</button>
-    </div>
+    <div class="overlay"></div>
+    <div class="modal">
+      <div class="close-btn" onclick="document.querySelector('button[data-testid=\\'close_modal\\'] button').click()">✕</div>
     """
-    st.markdown(modal_style, unsafe_allow_html=True)
+    st.markdown(overlay_css, unsafe_allow_html=True)
 
-    # Hantera formulärdata via JS workaround (ej native stöd ännu)
-    pname = st.experimental_get_query_params().get("pname", [""])[0]
-    pdesc = st.experimental_get_query_params().get("pdesc", [""])[0]
-    if pname:
-        create_project(pname, pdesc)
-        st.experimental_set_query_params()  # rensa query params
-        st.experimental_rerun()
+    # Actual form
+    with st.container():
+        with st.form("modal_project_form"):
+            st.text_input("Projektnamn", key="__proj_name")
+            st.text_area("Beskrivning", key="__proj_desc")
+            cols = st.columns([1,1])
+            with cols[0]:
+                submitted = st.form_submit_button("Skapa projekt")
+            with cols[1]:
+                canceled = st.form_submit_button("close_modal", label="Stäng")
 
-# --- Huvudfönster ---
+            if submitted and st.session_state["__proj_name"].strip():
+                add_project(st.session_state["__proj_name"], st.session_state["__proj_desc"])
+            if canceled:
+                st.session_state.show_modal = False
+
+    # close modal div
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# --- Main area ---
 st.title("RitnRev")
+
 if st.session_state.active_project:
-    pdata = st.session_state.projects[st.session_state.active_project]
-    st.subheader(f"📄 Projekt: {pdata['name']}")
-    st.write(pdata["description"])
+    proj = st.session_state.projects[st.session_state.active_project]
+    st.subheader(f"📄 Projekt: {proj['name']}")
+    st.write(proj["description"])
     st.markdown("### 📌 Revisioner")
-    st.button("+ Skapa ny revision")
+    if not proj["revisions"]:
+        st.info("Inga revisioner ännu.")
+    else:
+        for rev in proj["revisions"]:
+            with st.expander(f"🔍 {rev['title']}"):
+                st.write(rev["note"])
 else:
-    st.info("Välj eller skapa ett projekt i menyn för att börja.")
+    st.info("Välj eller skapa ett projekt i sidomenyn för att börja.")
