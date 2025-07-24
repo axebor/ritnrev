@@ -1,9 +1,12 @@
-# --- Anpassa sidomenyn via CSS ---
+import streamlit as st
+from uuid import uuid4
+
+# --- Sidomeny: Anpassad bredd och låsning ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {
-        min-width: 300px !important;
-        max-width: 300px !important;
+        min-width: 320px !important;
+        max-width: 320px !important;
         width: fit-content !important;
         resize: none !important;
     }
@@ -13,9 +16,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-import streamlit as st
-from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
 
@@ -65,7 +65,7 @@ for pid, pdata in st.session_state.projects.items():
 
         for i, rev in enumerate(pdata["revisions"]):
             if st.button(f"📐 {rev['title']}", key=f"{pid}_rev_{i}"):
-                st.session_state.active_project = pid  # ev. utökning: visa specifik revision
+                st.session_state.active_project = pid  # framtida vyer för revisioner
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
@@ -92,7 +92,11 @@ if st.session_state.active_project:
         with st.form("new_revision"):
             rev_title = st.text_input("Revisionsnamn")
             rev_note = st.text_area("Anteckning eller syfte")
-            rev_files = st.file_uploader("Ladda upp PDF- eller ZIP-filer", type=["pdf", "zip"], accept_multiple_files=True)
+            rev_files = st.file_uploader(
+                "Ladda upp PDF- eller ZIP-filer", 
+                type=["pdf", "zip"], 
+                accept_multiple_files=True
+            )
             save = st.form_submit_button("Spara revision")
 
             if save and rev_title:
