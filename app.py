@@ -6,15 +6,15 @@ import base64
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 
-# Ladda ikoner som Base64
+# === Ikoner (uppdatera sökvägar här) ===
 def get_icon_data_url(path):
     with open(path, "rb") as f:
         return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
 
-pdf_icon = get_icon_data_url("/mnt/data/Fa-Team-Fontawesome-Regular-FontAwesome-Regular-File-Pdf.512.png")
-zip_icon = get_icon_data_url("/mnt/data/Icons8-Windows-8-Files-Zip.512.png")
+pdf_icon = get_icon_data_url("/mnt/data/23399bc7-ab5d-47e3-b02a-0e670e12e516.png")
+zip_icon = get_icon_data_url("/mnt/data/Icons8-Windows-8-Files-Zip.512.png")  # Denna fil laddade du upp tidigare
 
-# App-layout
+# === Layout ===
 st.title("🔍 Jämför två versioner av handlingar")
 st.markdown("Ladda upp två PDF- eller ZIP-filer och klicka på **Jämför**.")
 
@@ -24,7 +24,7 @@ with col1:
 with col2:
     file_b = st.file_uploader("📄 Version B", type=["pdf", "zip"], key="file_b")
 
-# Extrahera PDF-namn ur uppladdad fil
+# === Extrahera PDF-namn från fil ===
 def extract_pdf_names(file):
     if file.name.lower().endswith(".pdf"):
         return [file.name]
@@ -37,7 +37,7 @@ def extract_pdf_names(file):
     else:
         return []
 
-# Visa resultat
+# === Jämförelsefunktion ===
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         names_a = extract_pdf_names(file_a)
