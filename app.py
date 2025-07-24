@@ -6,37 +6,51 @@ st.set_page_config(layout="wide")
 # Initiera session state
 if "projects" not in st.session_state:
     st.session_state.projects = {}
-
 if "active_project" not in st.session_state:
     st.session_state.active_project = None
-
 if "create_project_mode" not in st.session_state:
     st.session_state.create_project_mode = False
+if "create_revision_mode" not in st.session_state:
+    st.session_state.create_revision_mode = False
 
-
+# Funktioner
 def create_project(name, description):
     project_id = str(uuid.uuid4())
     st.session_state.projects[project_id] = {
         "name": name,
         "description": description,
-        "revisions": {}
+        "revisions": []
     }
     st.session_state.active_project = project_id
     st.session_state.create_project_mode = False
-
+    st.rerun()
 
 def delete_project(pid):
     if pid in st.session_state.projects:
         del st.session_state.projects[pid]
         if st.session_state.active_project == pid:
             st.session_state.active_project = None
-    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
-
+    st.rerun()
 
 def close_project_form():
     st.session_state.create_project_mode = False
-    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
+    st.rerun()
 
+def create_revision(project_id, title, note, files):
+    revision = {
+        "id": str(uuid.uuid4()),
+        "title": title,
+        "note": note,
+        "files": files
+    }
+    st.session_state.projects[project_id]["revisions"].append(revision)
+    st.session_state.create_revision_mode = False
+    st.rerun()
+
+def delete_revision(project_id, revision_id):
+    project = st.session_state.projects[project_id]
+    project["revisions"] = [r for r in project["revisions"] if r["id"] != revision_id]
+    st.rerun()
 
 # === SIDOMENY ===
 with st.sidebar:
@@ -55,11 +69,11 @@ with st.sidebar:
             if st.button(pdata["name"], key=f"select_{pid}"):
                 st.session_state.active_project = pid
                 st.session_state.create_project_mode = False
+                st.session_state.create_revision_mode = False
                 st.rerun()
         with c2:
             if st.button("✕", key=f"delproj_{pid}", help="Ta bort projekt"):
                 delete_project(pid)
-
 
 # === HUVUDFÖNSTER ===
 if st.session_state.create_project_mode:
@@ -69,14 +83,13 @@ if st.session_state.create_project_mode:
         description = st.text_area("Beskrivning", key="project_description")
         col1, col2 = st.columns([1, 5])
         with col1:
-            if st.form_submit_button("Skapa projekt", use_container_width=True):
+            if st.form_submit_button("Skapa projekt"):
                 if name.strip() != "":
                     create_project(name.strip(), description.strip())
-                    st.rerun()  # Tvinga omkörning efter att projektet skapats
                 else:
                     st.error("Projektnamn får inte vara tomt!")
         with col2:
-            if st.form_submit_button("Stäng", use_container_width=True):
+            if st.form_submit_button("Stäng"):
                 close_project_form()
 
 elif st.session_state.active_project:
@@ -84,10 +97,41 @@ elif st.session_state.active_project:
     st.subheader(f"📄 Projekt: {project['name']}")
     st.write(project["description"])
 
+    # Ny revision
+    if st.session_state.create_revision_mode:
+        st.markdown("### Skapa ny revision")
+        with st.form("create_revision_form"):
+            title = st.text_input("Revisionsnamn")
+            note = st.text_area("Anteckning / syfte")
+            files = st.file_uploader("Ladda upp PDF- eller ZIP-filer", type=["pdf", "zip"], accept_multiple_files=True)
+
+            col1, col2 = st.columns([1, 5])
+            with col1:
+                if st.form_submit_button("Spara revision"):
+                    if title.strip() != "":
+                        create_revision(st.session_state.active_project, title.strip(), note, files)
+                    else:
+                        st.error("Revisionsnamn krävs.")
+            with col2:
+                if st.form_submit_button("Stäng"):
+                    st.session_state.create_revision_mode = False
+                    st.rerun()
+    else:
+        st.button("➕ Skapa ny revision", key="create_revision_btn", on_click=lambda: st.session_state.update(create_revision_mode=True))
+
+    # Visa revisioner
     st.markdown("### 📌 Revisioner")
-    if st.button("➕ Skapa ny revision", key="create_revision_btn"):
-        # Lägg till logik för att skapa revisioner här
-        pass
+    for rev in project["revisions"]:
+        with st.expander(f"🔍 {rev['title']}"):
+            st.write(rev["note"])
+            if rev["files"]:
+                st.markdown("**Filer:**")
+                for f in rev["files"]:
+                    st.write(f"📄 {f.name}")
+            else:
+                st.info("Inga filer uppladdade.")
+            if st.button("❌ Ta bort revision", key=f"delrev_{rev['id']}"):
+                delete_revision(st.session_state.active_project, rev["id"])
 
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
