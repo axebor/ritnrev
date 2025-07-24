@@ -4,7 +4,7 @@ from uuid import uuid4
 # --- Grundinställningar ---
 st.set_page_config(page_title="RitnRev", layout="wide")
 
-# --- Anpassad CSS för sidomeny och revisioner ---
+# --- Anpassad CSS ---
 st.markdown("""
     <style>
     [data-testid="stSidebar"] {
@@ -35,16 +35,8 @@ if "show_project_form" not in st.session_state:
 if "show_revision_form" not in st.session_state:
     st.session_state.show_revision_form = False
 
-if "selected_revision" not in st.session_state:
-    st.session_state.selected_revision = None
-
-# --- Välj revision ---
-def select_revision(project_id, revision_index):
-    st.session_state.active_project = project_id
-    st.session_state.selected_revision = revision_index
-
 # --- Sidomeny ---
-st.sidebar.title("📁 Projekt")
+st.sidebar.markdown("## 📁 Projekt")
 
 if st.sidebar.button("➕ Nytt projekt"):
     st.session_state.show_project_form = True
@@ -66,16 +58,18 @@ if st.session_state.show_project_form:
             st.session_state.show_project_form = False
             st.rerun()
 
-# Visa befintliga projekt
+# Visa projekt & revisioner
 for pid, pdata in st.session_state.projects.items():
     with st.sidebar.expander(f"📁 {pdata['name']}", expanded=False):
         if st.button("📂 Öppna projekt", key=f"open_{pid}"):
             st.session_state.active_project = pid
-            st.session_state.selected_revision = None
             st.session_state.show_revision_form = False
 
         for i, rev in enumerate(pdata["revisions"]):
-            st.sidebar.markdown(f"<div class='revision-entry'>📐 {rev['title']}</div>", unsafe_allow_html=True)
+            st.sidebar.markdown(
+                f"<div class='revision-entry'>📐 {rev['title']}</div>",
+                unsafe_allow_html=True
+            )
 
 # --- Huvudinnehåll ---
 st.title("RitnRev")
