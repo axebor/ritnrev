@@ -1,15 +1,19 @@
 import streamlit as st
 import uuid
 
-# Initiera session_state
+st.set_page_config(layout="wide")
+
+# Initiera session state
 if "projects" not in st.session_state:
     st.session_state.projects = {}
+
 if "active_project" not in st.session_state:
     st.session_state.active_project = None
+
 if "create_project_mode" not in st.session_state:
     st.session_state.create_project_mode = False
 
-# Funktioner
+
 def create_project(name, description):
     project_id = str(uuid.uuid4())
     st.session_state.projects[project_id] = {
@@ -19,62 +23,69 @@ def create_project(name, description):
     }
     st.session_state.active_project = project_id
     st.session_state.create_project_mode = False
-    st.experimental_rerun()
+    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
+
 
 def delete_project(pid):
     if pid in st.session_state.projects:
         del st.session_state.projects[pid]
         if st.session_state.active_project == pid:
             st.session_state.active_project = None
-    st.experimental_rerun()
+    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
+
 
 def close_project_form():
     st.session_state.create_project_mode = False
-    st.experimental_rerun()
+    st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
 
-# Layout
+
+# === SIDOMENY ===
 with st.sidebar:
     st.markdown("### 📁 Projekt")
-    if st.button("➕ Skapa nytt projekt", key="nytt_projekt"):
+    if st.button("➕ Skapa nytt projekt", key="create_project_btn", use_container_width=True):
         st.session_state.create_project_mode = True
         st.session_state.active_project = None
-        st.experimental_rerun()
+        st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
 
     st.markdown("---")
     st.markdown("### 📂 Dina projekt")
-    for pid, pdata in st.session_state.projects.items():
+    for pid in list(st.session_state.projects.keys()):
+        pdata = st.session_state.projects[pid]
         c1, c2 = st.columns([5, 1])
         with c1:
             if st.button(pdata["name"], key=f"select_{pid}"):
                 st.session_state.active_project = pid
                 st.session_state.create_project_mode = False
-                st.experimental_rerun()
+                st.rerun()  # Tvinga omkörning för att uppdatera gränssnittet
         with c2:
-            if st.button("❌", key=f"delete_{pid}"):
+            if st.button("✕", key=f"delproj_{pid}", help="Ta bort projekt"):
                 delete_project(pid)
 
-# Huvudområde
+
+# === HUVUDFÖNSTER ===
 if st.session_state.create_project_mode:
-    st.markdown("## Skapa nytt projekt")
-    with st.container(border=True):
+    st.title("Skapa nytt projekt")
+    with st.form("create_project_form"):
         name = st.text_input("Projektnamn")
         description = st.text_area("Beskrivning")
-
-        col1, col2 = st.columns([1, 6])
+        col1, col2 = st.columns([1, 5])
         with col1:
-            if st.button("Skapa projekt"):
-                if name:
-                    create_project(name, description)
+            if st.form_submit_button("Skapa projekt"):
+                if name.strip() != "":
+                    create_project(name.strip(), description.strip())
         with col2:
-            if st.button("Stäng", key="close_form"):
+            if st.form_submit_button("Stäng", use_container_width=True):
                 close_project_form()
 
 elif st.session_state.active_project:
     project = st.session_state.projects[st.session_state.active_project]
-    st.markdown(f"## Projekt: {project['name']}")
+    st.subheader(f"📄 Projekt: {project['name']}")
     st.write(project["description"])
+
     st.markdown("### 📌 Revisioner")
-    if st.button("➕ Skapa ny revision"):
-        st.info("Här kommer revisionsformulär så småningom.")
+    if st.button("➕ Skapa ny revision", key="create_revision_btn"):
+        # Lägg till logik för att skapa revisioner här
+        pass
+
 else:
     st.info("Välj eller skapa ett projekt i menyn för att börja.")
