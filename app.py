@@ -3,20 +3,23 @@ import zipfile
 import tempfile
 import streamlit as st
 
-st.set_page_config(page_title="Bygghandlingsjämförelse", layout="wide")
-st.title("📁 Jämför två versioner av bygghandlingar")
-st.markdown("Ladda upp två zip-filer med PDF:er. Systemet kommer att matcha filnamn och visa status per fil.")
+st.set_page_config(page_title="RitnRev", layout="wide")
 
-col1, col2 = st.columns(2)
-with col1:
-    zip_a = st.file_uploader("🔹 Version A (t.ex. PRD)", type="zip", key="zip_a")
-with col2:
-    zip_b = st.file_uploader("🔸 Version B (t.ex. bygghandling)", type="zip", key="zip_b")
+# Sidonavigering
+sida = st.sidebar.selectbox("Navigera", ["📤 Ladda upp filer", "📋 Matchade filer", "ℹ️ Om appen"])
 
 def extract_zip_to_temp(zip_file):
     temp_dir = tempfile.mkdtemp()
     with zipfile.ZipFile(zip_file, "r") as z:
         z.extractall(temp_dir)
+    return temp_dir
+
+def save_uploaded_pdfs(uploaded_files):
+    temp_dir = tempfile.mkdtemp()
+    for file in uploaded_files:
+        file_path = os.path.join(temp_dir, file.name)
+        with open(file_path, "wb") as f:
+            f.write(file.read())
     return temp_dir
 
 def list_pdfs_in_folder(folder):
@@ -25,30 +28,40 @@ def list_pdfs_in_folder(folder):
         if f.lower().endswith(".pdf")
     ])
 
-if zip_a and zip_b:
-    st.markdown("### 📂 Matchade filer")
+# === Sida: Ladda upp ===
+if sida == "📤 Ladda upp filer":
+    st.markdown("### Ladda upp två versioner av PDF-filer")
+    st.markdown("Du kan ladda upp en .zip-fil **eller** enstaka PDF-filer per version.")
 
-    dir_a = extract_zip_to_temp(zip_a)
-    dir_b = extract_zip_to_temp(zip_b)
+    col1, col2 = st.columns(2)
 
-    pdfs_a = set(list_pdfs_in_folder(dir_a))
-    pdfs_b = set(list_pdfs_in_folder(dir_b))
+    with col1:
+        st.markdown("#### 🔹 Version A")
+        zip_a = st.file_uploader("Ladda upp ZIP (eller hoppa över)", type="zip", key="zip_a")
+        pdfs_a = st.file_uploader("...eller ladda upp PDF:er direkt", type="pdf", accept_multiple_files=True, key="pdf_a")
 
-    all_files = sorted(pdfs_a.union(pdfs_b))
+    with col2:
+        st.markdown("#### 🔸 Version B")
+        zip_b = st.file_uploader("Ladda upp ZIP (eller hoppa över)", type="zip", key="zip_b")
+        pdfs_b = st.file_uploader("...eller ladda upp PDF:er direkt", type="pdf", accept_multiple_files=True, key="pdf_b")
 
-    st.write("**Status:** ✅ = finns | ❌ = saknas")
-    st.markdown("---")
+    if (zip_a or pdfs_a) and (zip_b or pdfs_b):
+        st.success("✅ Filer laddade. Gå vidare till '📋 Matchade filer' i menyn.")
 
-    for filename in all_files:
-        in_a = filename in pdfs_a
-        in_b = filename in pdfs_b
+    else:
+        st.info("Vänligen ladda upp filer för båda versionerna.")
 
-        col1, col2, col3 = st.columns([4, 2, 2])
-        with col1:
-            st.write(f"📄 {filename}")
-        with col2:
-            st.write("✅ Ja" if in_a else "❌ Nej")
-        with col3:
-            st.write("✅ Ja" if in_b else "❌ Nej")
-else:
-    st.info("Ladda upp två zip-filer med PDF:er för att fortsätta.")
+# === Sida: Visa matchning ===
+elif sida == "📋 Matchade filer":
+    st.markdown("### 📂 Matchade PDF-filer mellan versioner")
+
+    if "zip_a" in st.session_state or "pdf_a" in st.session_state:
+        if "zip_b" in st.session_state or "pdf_b" in st.session_state:
+
+            # Hantera version A
+            if zip_a:
+                dir_a = extract_zip_to_temp(zip_a)
+            else:
+                dir_a = save_uploaded_pdfs(pdfs_a)
+
+            # Hantera ver
