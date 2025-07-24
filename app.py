@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import zipfile
 import tempfile
+import pdfplumber
+from difflib import SequenceMatcher
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 
@@ -14,41 +16,51 @@ with col1:
 with col2:
     file_b = st.file_uploader("📁 Version B", type=["pdf", "zip"], key="file_b")
 
-def extract_pdf_names(file):
+def extract_pdfs(file):
+    """Returnerar: {relativ filväg: fullständig sökväg}"""
+    result = {}
     if file.name.lower().endswith(".pdf"):
-        return [file.name]
+        temp_dir = tempfile.mkdtemp()
+        path = os.path.join(temp_dir, file.name)
+        with open(path, "wb") as f:
+            f.write(file.read())
+        result[file.name] = path
     elif file.name.lower().endswith(".zip"):
         temp_dir = tempfile.mkdtemp()
         with zipfile.ZipFile(file, "r") as z:
             z.extractall(temp_dir)
-        pdfs = []
         for root, _, files in os.walk(temp_dir):
             for f in files:
                 if f.lower().endswith(".pdf"):
                     rel_path = os.path.relpath(os.path.join(root, f), temp_dir)
-                    pdfs.append(rel_path.replace("\\", "/"))
-        return sorted(pdfs)
-    else:
-        return []
+                    result[rel_path.replace("\\", "/")] = os.path.join(root, f)
+    return result
 
 def file_icon(filename):
     return "📄" if filename.lower().endswith(".pdf") else "🗜️"
 
-# Simulerad innehållsskillnad (ersätts senare med riktig jämförelse)
-def simulate_diff_type(filename):
-    if "berakning" in filename.lower():
-        return "Text ändrad"
-    elif "ritning" in filename.lower():
-        return "Bild/ritning ändrad"
-    else:
-        return None
+def extract_text(path):
+    try:
+        with pdfplumber.open(path) as pdf:
+            return "\n".join(page.extract_text() or "" for page in pdf.pages)
+    except:
+        return ""
+
+def compare_text(path_a, path_b, threshold=0.98):
+    text_a = extract_text(path_a)
+    text_b = extract_text(path_b)
+    ratio = SequenceMatcher(None, text_a, text_b).ratio()
+    return ratio < threshold  # True om innehållet skiljer sig
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
-        names_a = extract_pdf_names(file_a)
-        names_b = extract_pdf_names(file_b)
+        pdfs_a = extract_pdfs(file_a)
+        pdfs_b = extract_pdfs(file_b)
 
-        all_files = sorted(set(names_a).union(set(names_b)))
+        names_a = set(pdfs_a.keys())
+        names_b = set(pdfs_b.keys())
+
+        all_files = sorted(names_a.union(names_b))
 
         st.markdown("### 📋 Jämförelsetabell")
 
@@ -60,8 +72,8 @@ if file_a and file_b:
         header[4].markdown("**Typ av skillnad**")
 
         for name in all_files:
-            in_a = name in names_a
-            in_b = name in names_b
+            in_a = name in pdfs_a
+            in_b = name in pdfs_b
             row = st.columns([4, 2, 2, 2, 3])
 
             with row[0]:
@@ -72,11 +84,11 @@ if file_a and file_b:
                 st.write("✅ Ja" if in_b else "❌ Nej")
 
             if in_a and in_b:
-                diff_type = simulate_diff_type(name)
+                text_diff = compare_text(pdfs_a[name], pdfs_b[name])
                 with row[3]:
-                    st.write("⚠️" if diff_type else "–")
+                    st.write("⚠️" if text_diff else "–")
                 with row[4]:
-                    st.write(diff_type if diff_type else "–")
+                    st.write("Text ändrad" if text_diff else "–")
             else:
                 with row[3]:
                     st.write("–")
