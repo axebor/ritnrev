@@ -3,7 +3,7 @@ from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
 
-# --- Initiera state ---
+# --- Initiera session state ---
 if "projects" not in st.session_state:
     st.session_state.projects = {}
 if "active_project" not in st.session_state:
@@ -29,8 +29,20 @@ def delete_project(pid):
     if st.session_state.active_project == pid:
         st.session_state.active_project = None
 
+def add_revision(pid, title, note, files):
+    st.session_state.projects[pid]["revisions"].append({
+        "title": title,
+        "note": note,
+        "files": files
+    })
+    st.session_state.create_revision_mode = False
+
+def delete_revision(pid, idx):
+    st.session_state.projects[pid]["revisions"].pop(idx)
+
 # --- Sidopanel ---
 st.sidebar.title("📁 Projekt")
+
 if st.sidebar.button("➕ Skapa nytt projekt"):
     st.session_state.create_project_mode = True
     st.session_state.create_revision_mode = False
@@ -49,7 +61,7 @@ for pid, pdata in st.session_state.projects.items():
             delete_project(pid)
 
 # --- Huvudarea ---
-# Visa titel bara om vi inte skapar projekt
+# Visa app-titel endast om ej i create_project_mode
 if not st.session_state.create_project_mode:
     st.title("RitnRev")
 
@@ -59,18 +71,14 @@ if st.session_state.create_project_mode:
     with st.form("project_form"):
         name = st.text_input("Projektnamn")
         desc = st.text_area("Beskrivning")
-        # två kolumner, där Stäng är längst ut åt höger
-        c1, c2 = st.columns([1,1])
-        with c1:
-            submitted = st.form_submit_button("Skapa projekt")
-        with c2:
-            canceled = st.form_submit_button("Stäng")
-    if submitted and name:
-        add_project(name, desc)
-    elif canceled:
+        submitted = st.form_submit_button("Skapa projekt")
+        if submitted and name:
+            add_project(name, desc)
+    # Stäng-knapp utanför form
+    if st.button("Stäng"):
         st.session_state.create_project_mode = False
 
-# 2) Visar valt projekt
+# 2) Projekt valt-läge
 elif st.session_state.active_project:
     pid = st.session_state.active_project
     project = st.session_state.projects[pid]
@@ -79,36 +87,35 @@ elif st.session_state.active_project:
     st.write(project["description"])
     st.markdown("### 📌 Revisioner")
 
+    # Lista revisioner
     if not project["revisions"]:
         st.info("Inga revisioner ännu.")
     for idx, rev in enumerate(project["revisions"]):
         with st.expander(rev["title"]):
             st.write(rev["note"])
+            st.write(f"Antal filer: {len(rev['files'])}")
+            for f in rev["files"]:
+                st.write(f"📄 {f.name}")
             if st.button("✕ Ta bort revision", key=f"delrev_{idx}"):
-                project["revisions"].pop(idx)
+                delete_revision(pid, idx)
 
     st.markdown("---")
+    # Skapa revision-läge
     if st.session_state.create_revision_mode:
         st.subheader("Skapa ny revision")
         with st.form("revision_form"):
             title = st.text_input("Revisionsnamn")
             note = st.text_area("Anteckning eller syfte")
-            files = st.file_uploader("Ladda upp PDF- eller ZIP-filer",
-                                     type=["pdf","zip"],
-                                     accept_multiple_files=True)
-            r1, r2 = st.columns([1,1])
-            with r1:
-                rev_sub = st.form_submit_button("Spara revision")
-            with r2:
-                rev_cancel = st.form_submit_button("Stäng")
-        if rev_sub and title:
-            project["revisions"].append({
-                "title": title,
-                "note": note,
-                "files": files
-            })
-            st.session_state.create_revision_mode = False
-        elif rev_cancel:
+            files = st.file_uploader(
+                "Ladda upp PDF- eller ZIP-filer",
+                type=["pdf","zip"],
+                accept_multiple_files=True
+            )
+            rev_submitted = st.form_submit_button("Spara revision")
+            if rev_submitted and title:
+                add_revision(pid, title, note, files)
+        # Stäng-knapp utanför form
+        if st.button("Stäng"):
             st.session_state.create_revision_mode = False
     else:
         if st.button("➕ Skapa ny revision"):
