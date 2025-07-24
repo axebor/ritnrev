@@ -1,108 +1,97 @@
+import streamlit as st
 import os
 import zipfile
 import tempfile
-import streamlit as st
+from uuid import uuid4
 
 st.set_page_config(page_title="RitnRev", layout="wide")
 
-# Sidonavigering
-sida = st.sidebar.selectbox("Navigera", ["📤 Ladda upp filer", "📋 Matchade filer", "ℹ️ Om appen"])
+# --- Initiera session ---
+if "projects" not in st.session_state:
+    st.session_state.projects = {}
 
-def extract_zip_to_temp(zip_file):
-    temp_dir = tempfile.mkdtemp()
-    with zipfile.ZipFile(zip_file, "r") as z:
-        z.extractall(temp_dir)
-    return temp_dir
+if "active_project" not in st.session_state:
+    st.session_state.active_project = None
 
-def save_uploaded_pdfs(uploaded_files):
-    temp_dir = tempfile.mkdtemp()
-    for file in uploaded_files:
-        file_path = os.path.join(temp_dir, file.name)
-        with open(file_path, "wb") as f:
-            f.write(file.read())
-    return temp_dir
+if "show_project_form" not in st.session_state:
+    st.session_state.show_project_form = False
 
-def list_pdfs_in_folder(folder):
-    return sorted([
-        f for f in os.listdir(folder)
-        if f.lower().endswith(".pdf")
-    ])
+if "show_revision_form" not in st.session_state:
+    st.session_state.show_revision_form = False
 
-# === Sida: Ladda upp ===
-if sida == "📤 Ladda upp filer":
-    st.markdown("### Ladda upp två versioner av PDF-filer")
-    st.markdown("Du kan ladda upp en .zip-fil **eller** enstaka PDF-filer per version.")
+# --- Sidomeny: projektstruktur ---
+st.sidebar.title("📁 Projekt")
 
-    col1, col2 = st.columns(2)
+# Nytt projekt-knapp
+if st.sidebar.button("➕ Nytt projekt"):
+    st.session_state.show_project_form = True
 
-    with col1:
-        st.markdown("#### 🔹 Version A")
-        zip_a = st.file_uploader("Ladda upp ZIP (eller hoppa över)", type="zip", key="zip_a")
-        pdfs_a = st.file_uploader("...eller ladda upp PDF:er direkt", type="pdf", accept_multiple_files=True, key="pdf_a")
+# Formulär: skapa projekt
+if st.session_state.show_project_form:
+    with st.sidebar.form("create_project"):
+        name = st.text_input("Projektnamn")
+        description = st.text_area("Beskrivning")
+        create = st.form_submit_button("Skapa projekt")
 
-    with col2:
-        st.markdown("#### 🔸 Version B")
-        zip_b = st.file_uploader("Ladda upp ZIP (eller hoppa över)", type="zip", key="zip_b")
-        pdfs_b = st.file_uploader("...eller ladda upp PDF:er direkt", type="pdf", accept_multiple_files=True, key="pdf_b")
+        if create and name:
+            project_id = str(uuid4())
+            st.session_state.projects[project_id] = {
+                "name": name,
+                "description": description,
+                "revisions": []
+            }
+            st.session_state.active_project = project_id
+            st.session_state.show_project_form = False
+            st.success(f"Projekt '{name}' skapat!")
 
-    if (zip_a or pdfs_a) and (zip_b or pdfs_b):
-        st.success("✅ Filer laddade. Gå vidare till '📋 Matchade filer' i menyn.")
+# Lista projekt
+if st.session_state.projects:
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📂 Dina projekt")
+    for pid, pdata in st.session_state.projects.items():
+        if st.sidebar.button(pdata["name"], key=pid):
+            st.session_state.active_project = pid
+            st.session_state.show_revision_form = False
 
-    else:
-        st.info("Vänligen ladda upp filer för båda versionerna.")
+# --- Huvudinnehåll ---
+st.title("RitnRev")
 
-# === Sida: Visa matchning ===
-elif sida == "📋 Matchade filer":
-    st.markdown("### 📂 Matchade PDF-filer mellan versioner")
+if st.session_state.active_project:
+    project = st.session_state.projects[st.session_state.active_project]
+    st.subheader(f"📄 Projekt: {project['name']}")
+    st.write(project["description"])
 
-    if "zip_a" in st.session_state or "pdf_a" in st.session_state:
-        if "zip_b" in st.session_state or "pdf_b" in st.session_state:
+    st.markdown("### 📌 Revisioner")
+    for rev in project["revisions"]:
+        with st.expander(f"🔍 {rev['title']}"):
+            st.write(rev["note"])
+            st.write(f"{len(rev['files'])} fil(er) är kopplade.")
+            for f in rev["files"]:
+                st.write(f"📄 {f.name}")
 
-            # Hantera version A
-            if zip_a:
-                dir_a = extract_zip_to_temp(zip_a)
-            else:
-                dir_a = save_uploaded_pdfs(pdfs_a)
+    st.markdown("---")
 
-            # Hantera version B
-            if zip_b:
-                dir_b = extract_zip_to_temp(zip_b)
-            else:
-                dir_b = save_uploaded_pdfs(pdfs_b)
+    # Ny revision
+    if st.button("➕ Skapa ny revision"):
+        st.session_state.show_revision_form = True
 
-            pdfs_a_set = set(list_pdfs_in_folder(dir_a))
-            pdfs_b_set = set(list_pdfs_in_folder(dir_b))
-            all_files = sorted(pdfs_a_set.union(pdfs_b_set))
+    # Formulär: skapa revision
+    if st.session_state.show_revision_form:
+        with st.form("new_revision"):
+            rev_title = st.text_input("Revisionsnamn")
+            rev_note = st.text_area("Anteckning eller syfte")
+            rev_files = st.file_uploader("Ladda upp PDF- eller ZIP-filer", type=["pdf", "zip"], accept_multiple_files=True)
+            save = st.form_submit_button("Spara revision")
 
-            st.write("**Status:** ✅ = finns | ❌ = saknas")
-            st.markdown("---")
+            if save and rev_title:
+                revision = {
+                    "title": rev_title,
+                    "note": rev_note,
+                    "files": rev_files
+                }
+                project["revisions"].append(revision)
+                st.session_state.show_revision_form = False
+                st.success(f"Revision '{rev_title}' skapad!")
 
-            for filename in all_files:
-                in_a = filename in pdfs_a_set
-                in_b = filename in pdfs_b_set
-
-                col1, col2, col3 = st.columns([4, 2, 2])
-                with col1:
-                    st.write(f"📄 {filename}")
-                with col2:
-                    st.write("✅ Ja" if in_a else "❌ Nej")
-                with col3:
-                    st.write("✅ Ja" if in_b else "❌ Nej")
-        else:
-            st.warning("Du måste först ladda upp Version B.")
-    else:
-        st.warning("Du måste först ladda upp Version A.")
-
-# === Sida: Om appen ===
-elif sida == "ℹ️ Om appen":
-    st.markdown("### ℹ️ RitnRev – AI-stödd PDF-jämförelse")
-    st.write("""
-    Detta verktyg hjälper dig att jämföra två versioner av bygghandlingar – både textdokument och ritningar.
-    
-    Du laddar upp två versioner av dokumenten (t.ex. PRD och bygghandling). Systemet matchar filnamn och visar vilka dokument som:
-    - Har ändrats
-    - Är nya
-    - Har tagits bort
-    
-    I kommande steg kommer visuell och textuell jämförelse att byggas in.
-    """)
+else:
+    st.info("Välj eller skapa ett projekt i menyn för att börja.")
