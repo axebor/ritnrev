@@ -31,28 +31,35 @@ if st.sidebar.button("➕ Nytt projekt"):
 
 # Formulär: skapa projekt
 if st.session_state.show_project_form:
-    with st.sidebar.form("create_project"):
-        name = st.text_input("Projektnamn")
-        description = st.text_area("Beskrivning")
-        cols = st.columns([1, 1])
-        with cols[0]:
-            create = st.form_submit_button("Skapa projekt")
-        with cols[1]:
-            cancel = st.form_submit_button("❌ Stäng")
+    with st.sidebar.container():
+        top_row = st.columns([6, 1])
+        with top_row[1]:
+            if st.button("❌", key="close_project_form"):
+                st.session_state.show_project_form = False
 
-        if cancel:
-            st.session_state.show_project_form = False
+        with st.form("create_project"):
+            name = st.text_input("Projektnamn")
+            description = st.text_area("Beskrivning")
+            cols = st.columns([1, 1])
+            with cols[0]:
+                create = st.form_submit_button("Skapa projekt")
+            with cols[1]:
+                cancel = st.form_submit_button("Stäng")
 
-        if create and name:
-            project_id = str(uuid4())
-            st.session_state.projects[project_id] = {
-                "name": name,
-                "description": description,
-                "revisions": []
-            }
-            st.session_state.active_project = project_id
-            st.session_state.last_created_project = name
-            st.session_state.show_project_form = False
+            if cancel:
+                st.session_state.show_project_form = False
+
+            if create and name:
+                project_id = str(uuid4())
+                st.session_state.projects[project_id] = {
+                    "name": name,
+                    "description": description,
+                    "revisions": []
+                }
+                st.session_state.active_project = project_id
+                st.session_state.last_created_project = name
+                st.session_state.show_project_form = False
+                st.experimental_rerun()
 
 # Lista projekt
 if st.session_state.projects:
