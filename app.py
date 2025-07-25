@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from PIL import ImageChops, Image
 import fitz  # PyMuPDF
 import time
+import io
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -63,20 +64,13 @@ def compare_images(path_a, path_b, progress_callback=None):
         for i in range(num_pages):
             if progress_callback:
                 progress_callback((i + 1) / num_pages)
-            time.sleep(0.1)  # För att visa jämn progress visuellt
+            time.sleep(0.1)
 
             pix_a = doc_a[i].get_pixmap(dpi=300)
             pix_b = doc_b[i].get_pixmap(dpi=300)
 
-            img_a = Image.open(tempfile.TemporaryFile())
-            img_a.fp.write(pix_a.tobytes("png"))
-            img_a.fp.seek(0)
-            img_a = Image.open(img_a.fp).convert("RGB")
-
-            img_b = Image.open(tempfile.TemporaryFile())
-            img_b.fp.write(pix_b.tobytes("png"))
-            img_b.fp.seek(0)
-            img_b = Image.open(img_b.fp).convert("RGB")
+            img_a = Image.open(io.BytesIO(pix_a.tobytes("png"))).convert("RGB")
+            img_b = Image.open(io.BytesIO(pix_b.tobytes("png"))).convert("RGB")
 
             if img_a.size != img_b.size:
                 return True, i + 1, total_score
@@ -100,9 +94,10 @@ def file_icon(filename):
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         st.markdown("🚀 **Analys startar – scrolla ner för resultat...**")
+        total_progress_bar = st.progress(0.0)
+
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
-
         all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
 
         st.markdown("### 📋 Jämförelsetabell")
@@ -113,7 +108,8 @@ if file_a and file_b:
         header[3].markdown("**Skillnad i innehåll**")
         header[4].markdown("**Typ av skillnad**")
 
-        for name in all_names:
+        total_files = len(all_names)
+        for idx, name in enumerate(all_names):
             in_a = name in pdfs_a
             in_b = name in pdfs_b
             row = st.columns([4, 2, 2, 2, 3])
@@ -151,5 +147,7 @@ if file_a and file_b:
             else:
                 progress_placeholder.write("–")
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
+
+            total_progress_bar.progress((idx + 1) / total_files)
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
