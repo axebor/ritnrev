@@ -52,12 +52,11 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b):
+def compare_images(path_a, path_b, progress_callback=None, total_pages_done=0, total_pages=1):
     name = os.path.basename(path_a)
     try:
         doc_a = fitz.open(path_a)
         doc_b = fitz.open(path_b)
-
         num_pages = min(len(doc_a), len(doc_b))
 
         for i in range(num_pages):
@@ -68,10 +67,15 @@ def compare_images(path_a, path_b):
             img_b = Image.open(io.BytesIO(pix_b.tobytes("png"))).convert("RGB")
 
             if img_a.size != img_b.size:
+                if progress_callback:
+                    progress_callback((total_pages_done + i + 1) / total_pages)
                 return True, i + 1
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
+
+            if progress_callback:
+                progress_callback((total_pages_done + i + 1) / total_pages)
 
             if diff_score > 1:
                 return True, i + 1
@@ -88,11 +92,25 @@ def file_icon(filename):
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         st.markdown("🚀 **Analys startar – scrolla ner för resultat...**")
-        total_progress_bar = st.progress(0.0)
 
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
         all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
+
+        # För total progressberäkning baserat på sidor
+        total_pages = 0
+        page_counts = {}
+        for name in all_names:
+            if name in pdfs_a and name in pdfs_b:
+                try:
+                    num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
+                    page_counts[name] = num
+                    total_pages += num
+                except:
+                    page_counts[name] = 0
+
+        total_progress_bar = st.progress(0.0)
+        pages_done = 0
 
         st.markdown("### 📋 Jämförelsetabell")
         header = st.columns([4, 2, 2, 2, 3])
@@ -102,8 +120,7 @@ if file_a and file_b:
         header[3].markdown("**Skillnad i innehåll**")
         header[4].markdown("**Typ av skillnad**")
 
-        total_files = len(all_names)
-        for idx, name in enumerate(all_names):
+        for name in all_names:
             in_a = name in pdfs_a
             in_b = name in pdfs_b
             row = st.columns([4, 2, 2, 2, 3])
@@ -123,8 +140,18 @@ if file_a and file_b:
                 if text_changed:
                     result_placeholder.write("⚠️")
                     type_placeholder.write("Text ändrad")
+                    pages_done += page_counts.get(name, 0)
+                    total_progress_bar.progress(pages_done / total_pages if total_pages else 1.0)
                 else:
-                    img_changed, page = compare_images(path_a, path_b)
+                    img_changed, page = compare_images(
+                        path_a,
+                        path_b,
+                        progress_callback=total_progress_bar.progress,
+                        total_pages_done=pages_done,
+                        total_pages=total_pages
+                    )
+                    pages_done += page_counts.get(name, 0)
+
                     if img_changed:
                         result_placeholder.write("⚠️")
                         type_placeholder.write(f"Bild ändrad (sida {page})")
@@ -135,7 +162,5 @@ if file_a and file_b:
                 result_placeholder.write("–")
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
-            time.sleep(2)
-            total_progress_bar.progress((idx + 1) / total_files)
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
