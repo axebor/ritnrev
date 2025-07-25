@@ -116,11 +116,14 @@ if "ai_requests" not in st.session_state:
     st.session_state.ai_requests = {}
 if "start_comparison" not in st.session_state:
     st.session_state.start_comparison = False
+if "ai_generating" not in st.session_state:
+    st.session_state.ai_generating = None
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         st.session_state.start_comparison = True
         st.session_state.ai_requests = {}
+        st.session_state.ai_generating = None
 
 if st.session_state.start_comparison:
     status_placeholder = st.empty()
@@ -157,7 +160,7 @@ if st.session_state.start_comparison:
         header[2].markdown("**I Version B**")
         header[3].markdown("**Skillnad i innehåll**")
         header[4].markdown("**Typ av skillnad**")
-        header[5].markdown("**AI-Analysera**")
+        header[5].markdown("**AI-Analys**")
 
         for name in all_names:
             status_placeholder.info(f"🔍 Jämför {name}...")
@@ -214,20 +217,20 @@ if st.session_state.start_comparison:
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
             if show_ai_button:
-                with ai_placeholder.form(key=f"ai_form_{name}"):
-                    submit = st.form_submit_button("AI-Analysera")
-                    if submit:
-                        st.session_state.ai_requests[name] = path_b
+                if st.session_state.ai_generating == name:
+                    ai_placeholder.spinner("AI analyserar...")
+                elif name in st.session_state.ai_requests:
+                    new_pdf_path = generate_dummy_ai_pdf(st.session_state.ai_requests[name], output_name=name.replace(".pdf", "_revcheck.pdf"))
+                    with open(new_pdf_path, "rb") as f:
+                        ai_placeholder.download_button("📥 Ladda ner AI-resultat", f, file_name=os.path.basename(new_pdf_path), key=f"dl_{name}")
+                else:
+                    if ai_placeholder.button("AI-Analysera", key=f"ai_{name}"):
+                        st.session_state.ai_requests[name] = pdfs_b[name]
+                        st.session_state.ai_generating = name
+                        st.rerun()
             else:
                 ai_placeholder.write("–")
 
         status_placeholder.success("✅ Analys klar.")
-
-    if st.session_state.ai_requests:
-        st.markdown("### 🧠 AI-genererade PDF:er")
-        for name, path_b in st.session_state.ai_requests.items():
-            new_pdf_path = generate_dummy_ai_pdf(path_b, output_name=name.replace(".pdf", "_revcheck.pdf"))
-            with open(new_pdf_path, "rb") as f:
-                st.download_button(f"Ladda ner {os.path.basename(new_pdf_path)}", f, file_name=os.path.basename(new_pdf_path), key=f"dl_{name}")
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
