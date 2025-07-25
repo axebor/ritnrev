@@ -4,7 +4,7 @@ import zipfile
 import tempfile
 import pdfplumber
 from difflib import SequenceMatcher
-from PIL import ImageChops, Image
+from PIL import ImageChops, Image, ImageDraw, ImageFont
 import fitz  # PyMuPDF
 import time
 import io
@@ -89,6 +89,28 @@ def compare_images(path_a, path_b, progress_callback=None, total_pages_done=0, t
 def file_icon(filename):
     return "📄" if filename.lower().endswith(".pdf") else "🧼"
 
+def generate_dummy_ai_pdf(path_b, output_name="revcheck.pdf"):
+    doc = fitz.open(path_b)
+    pix = doc[0].get_pixmap(dpi=150)
+    img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([100, 100, 300, 160], outline="red", width=4)
+    draw.text((100, 170), "Här hittades en ändring.", fill="red")
+
+    temp_pdf_path = os.path.join(tempfile.gettempdir(), output_name)
+    new_doc = fitz.open()
+    img_byte_arr = io.BytesIO()
+    img.save(img_byte_arr, format="PNG")
+    img_bytes = img_byte_arr.getvalue()
+
+    rect = fitz.Rect(0, 0, img.width, img.height)
+    page = new_doc.new_page(width=img.width, height=img.height)
+    page.insert_image(rect, stream=img_bytes)
+
+    new_doc.save(temp_pdf_path)
+    return temp_pdf_path
+
 if file_a and file_b:
     if st.button("🔍 Jämför"):
         status_placeholder = st.empty()
@@ -120,7 +142,7 @@ if file_a and file_b:
                 time.sleep(0.001)
 
             st.markdown("### 📋 Jämförelsetabell")
-            header = st.columns([4, 2, 2, 2, 3, 2])  # Extra kolumn för AI
+            header = st.columns([4, 2, 2, 2, 3, 2])
             header[0].markdown("**Filnamn**")
             header[1].markdown("**I Version A**")
             header[2].markdown("**I Version B**")
@@ -141,7 +163,7 @@ if file_a and file_b:
 
                 result_placeholder = row[3].empty()
                 type_placeholder = row[4].empty()
-                ai_button_placeholder = row[5].empty()
+                ai_placeholder = row[5].empty()
 
                 show_ai_button = False
 
@@ -183,9 +205,12 @@ if file_a and file_b:
                     type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
                 if show_ai_button:
-                    ai_button_placeholder.button("AI-Analysera", key=f"ai_{name}")
+                    if ai_placeholder.button("AI-Analysera", key=f"ai_{name}"):
+                        new_pdf_path = generate_dummy_ai_pdf(path_b, output_name=name.replace(".pdf", "_revcheck.pdf"))
+                        with open(new_pdf_path, "rb") as f:
+                            ai_placeholder.download_button("Ladda ner _revcheck.pdf", f, file_name=os.path.basename(new_pdf_path), key=f"dl_{name}")
                 else:
-                    ai_button_placeholder.write("–")
+                    ai_placeholder.write("–")
 
         status_placeholder.success("✅ Analys klar.")
 else:
