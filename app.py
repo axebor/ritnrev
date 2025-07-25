@@ -91,87 +91,91 @@ def file_icon(filename):
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
-        st.markdown("🚀 **Analys startar – scrolla ner för resultat...**")
+        status_placeholder = st.empty()  # Visar status under analys
 
-        pdfs_a = extract_pdfs(file_a)
-        pdfs_b = extract_pdfs(file_b)
-        all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
+        with st.spinner("Analyserar filer... detta kan ta en stund."):
+            status_placeholder.info("🔄 Analyserar filer...")
 
-        # Räkna totalt antal sidor som ska jämföras
-        total_pages = 0
-        page_counts = {}
-        for name in all_names:
-            if name in pdfs_a and name in pdfs_b:
-                try:
-                    num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
-                    page_counts[name] = num
-                    total_pages += num
-                except:
-                    page_counts[name] = 0
+            pdfs_a = extract_pdfs(file_a)
+            pdfs_b = extract_pdfs(file_b)
+            all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
 
-        # Progressbar med jämn uppdatering
-        progress_placeholder = st.empty()
-        progress_bar = progress_placeholder.progress(0.0)
-        pages_done = 0
+            total_pages = 0
+            page_counts = {}
+            for name in all_names:
+                if name in pdfs_a and name in pdfs_b:
+                    try:
+                        num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
+                        page_counts[name] = num
+                        total_pages += num
+                    except:
+                        page_counts[name] = 0
 
-        def update_progress(pages_done, total_pages):
-            progress = pages_done / total_pages if total_pages else 1.0
-            progress_bar.progress(progress)
-            time.sleep(0.001)  # säkerställer att UI inte fryser
+            progress_bar = st.progress(0.0)
+            pages_done = 0
 
-        st.markdown("### 📋 Jämförelsetabell")
-        header = st.columns([4, 2, 2, 2, 3])
-        header[0].markdown("**Filnamn**")
-        header[1].markdown("**I Version A**")
-        header[2].markdown("**I Version B**")
-        header[3].markdown("**Skillnad i innehåll**")
-        header[4].markdown("**Typ av skillnad**")
+            def update_progress(pages_done, total_pages):
+                progress = pages_done / total_pages if total_pages else 1.0
+                progress_bar.progress(progress)
+                time.sleep(0.001)
 
-        for name in all_names:
-            in_a = name in pdfs_a
-            in_b = name in pdfs_b
-            row = st.columns([4, 2, 2, 2, 3])
+            st.markdown("### 📋 Jämförelsetabell")
+            header = st.columns([4, 2, 2, 2, 3])
+            header[0].markdown("**Filnamn**")
+            header[1].markdown("**I Version A**")
+            header[2].markdown("**I Version B**")
+            header[3].markdown("**Skillnad i innehåll**")
+            header[4].markdown("**Typ av skillnad**")
 
-            with row[0]: st.write(f"{file_icon(name)} {name}")
-            with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
-            with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
+            for name in all_names:
+                status_placeholder.info(f"🔍 Jämför {name}...")
 
-            result_placeholder = row[3].empty()
-            type_placeholder = row[4].empty()
+                in_a = name in pdfs_a
+                in_b = name in pdfs_b
+                row = st.columns([4, 2, 2, 2, 3])
 
-            if in_a and in_b:
-                path_a = pdfs_a[name]
-                path_b = pdfs_b[name]
+                with row[0]: st.write(f"{file_icon(name)} {name}")
+                with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
+                with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
-                text_changed = compare_text(path_a, path_b)
-                if text_changed:
-                    result_placeholder.write("⚠️")
-                    type_placeholder.write("Text ändrad")
-                    pages_done += page_counts.get(name, 0)
-                    update_progress(pages_done, total_pages)
-                else:
-                    def progress_callback(progress_fraction):
-                        progress_bar.progress(progress_fraction)
-                        time.sleep(0.001)
+                result_placeholder = row[3].empty()
+                type_placeholder = row[4].empty()
 
-                    img_changed, page = compare_images(
-                        path_a,
-                        path_b,
-                        progress_callback=progress_callback,
-                        total_pages_done=pages_done,
-                        total_pages=total_pages
-                    )
-                    pages_done += page_counts.get(name, 0)
-                    update_progress(pages_done, total_pages)
+                if in_a and in_b:
+                    path_a = pdfs_a[name]
+                    path_b = pdfs_b[name]
 
-                    if img_changed:
+                    text_changed = compare_text(path_a, path_b)
+                    if text_changed:
                         result_placeholder.write("⚠️")
-                        type_placeholder.write(f"Bild ändrad (sida {page})")
+                        type_placeholder.write("Text ändrad")
+                        pages_done += page_counts.get(name, 0)
+                        update_progress(pages_done, total_pages)
                     else:
-                        result_placeholder.write("–")
-                        type_placeholder.write("–")
-            else:
-                result_placeholder.write("–")
-                type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
+                        def progress_callback(progress_fraction):
+                            progress_bar.progress(progress_fraction)
+                            time.sleep(0.001)
+
+                        img_changed, page = compare_images(
+                            path_a,
+                            path_b,
+                            progress_callback=progress_callback,
+                            total_pages_done=pages_done,
+                            total_pages=total_pages
+                        )
+                        pages_done += page_counts.get(name, 0)
+                        update_progress(pages_done, total_pages)
+
+                        if img_changed:
+                            result_placeholder.write("⚠️")
+                            type_placeholder.write(f"Bild ändrad (sida {page})")
+                        else:
+                            result_placeholder.write("–")
+                            type_placeholder.write("–")
+                else:
+                    result_placeholder.write("–")
+                    type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
+
+        status_placeholder.success("✅ Analys klar.")
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
