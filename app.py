@@ -63,15 +63,15 @@ def compare_images(path_a, path_b, threshold=1):
             pix_a = doc_a[i].get_pixmap(dpi=300)
             pix_b = doc_b[i].get_pixmap(dpi=300)
 
-            img_a = Image.open(tempfile.TemporaryFile()).convert("RGB")
+            img_a = Image.open(tempfile.TemporaryFile())
             img_a.fp.write(pix_a.tobytes("png"))
             img_a.fp.seek(0)
-            img_a = Image.open(img_a.fp)
+            img_a = Image.open(img_a.fp).convert("RGB")
 
-            img_b = Image.open(tempfile.TemporaryFile()).convert("RGB")
+            img_b = Image.open(tempfile.TemporaryFile())
             img_b.fp.write(pix_b.tobytes("png"))
             img_b.fp.seek(0)
-            img_b = Image.open(img_b.fp)
+            img_b = Image.open(img_b.fp).convert("RGB")
 
             if img_a.size != img_b.size:
                 return True, i + 1, total_score
