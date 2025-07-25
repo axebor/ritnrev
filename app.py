@@ -18,6 +18,7 @@ with col2:
     file_b = st.file_uploader("📁 Version B", type=["pdf", "zip"], key="file_b")
 
 def extract_pdfs(file):
+    """Returnerar dict: {filnamn.pdf: full_path}"""
     result = {}
     if file.name.lower().endswith(".pdf"):
         temp_dir = tempfile.mkdtemp()
@@ -51,15 +52,12 @@ def compare_text(path_a, path_b, threshold=0.98):
     return ratio < threshold
 
 def compare_images(path_a, path_b, dpi=300, threshold=1):
-    name = os.path.basename(path_a)
     try:
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
             images_a = convert_from_bytes(f1.read(), dpi=dpi)
             images_b = convert_from_bytes(f2.read(), dpi=dpi)
 
         num_pages = min(len(images_a), len(images_b))
-        total_score = 0
-
         for i in range(num_pages):
             img_a = images_a[i].convert("RGB")
             img_b = images_b[i].convert("RGB")
@@ -69,16 +67,13 @@ def compare_images(path_a, path_b, dpi=300, threshold=1):
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
-            total_score += diff_score
-            print(f"[{name}] Sida {i+1} – diff_score: {diff_score}")
-
+            print(f"[{os.path.basename(path_a)}] Sida {i+1} – diff_score: {diff_score}")
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
 
-        return False, None, None, None, total_score
-
+        return False, None, None, None, 0
     except Exception as e:
-        print(f"[{name}] Bildjämförelse fel:", e)
+        print("Bildjämförelsefel:", e)
         return False, None, None, None, 0
 
 def file_icon(filename):
@@ -86,7 +81,6 @@ def file_icon(filename):
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
-        st.markdown("🚀 **Analys startar – scrolla ner för resultat...**")
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
 
@@ -112,22 +106,21 @@ if file_a and file_b:
             if in_a and in_b:
                 path_a = pdfs_a[name]
                 path_b = pdfs_b[name]
-
                 text_changed = compare_text(path_a, path_b)
                 if text_changed:
                     with row[3]: st.write("⚠️")
                     with row[4]: st.write("Text ändrad")
                 else:
                     img_changed, page, img_a, img_b, score = compare_images(path_a, path_b)
-                    if score > 0:
-                        with row[3]: st.write(f"Diff: {score}")
                     if img_changed:
-                        with row[4]: st.write(f"Bild ändrad (sida {page})")
-                        with st.expander(f"🔍 Visa skillnad: {name} (sida {page})"):
+                        with row[3]: st.write("⚠️")
+                        with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score}")
+                        with st.expander(f"🔍 Visa skillnad (sida {page})"):
                             col1, col2 = st.columns(2)
                             col1.image(img_a, caption="Version A")
                             col2.image(img_b, caption="Version B")
                     else:
+                        with row[3]: st.write("–")
                         with row[4]: st.write("–")
             else:
                 with row[3]: st.write("–")
