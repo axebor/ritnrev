@@ -4,8 +4,8 @@ import zipfile
 import tempfile
 import pdfplumber
 from difflib import SequenceMatcher
-from pdf2image import convert_from_bytes
 from PIL import ImageChops, Image
+import fitz  # PyMuPDF
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -50,38 +50,47 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b, dpi=300, threshold=1):
+def compare_images(path_a, path_b, threshold=1):
     name = os.path.basename(path_a)
     try:
-        with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
-            images_a = convert_from_bytes(f1.read(), dpi=dpi)
-            images_b = convert_from_bytes(f2.read(), dpi=dpi)
+        doc_a = fitz.open(path_a)
+        doc_b = fitz.open(path_b)
 
-        num_pages = min(len(images_a), len(images_b))
+        num_pages = min(len(doc_a), len(doc_b))
         total_score = 0
 
         for i in range(num_pages):
-            img_a = images_a[i].convert("RGB")
-            img_b = images_b[i].convert("RGB")
+            pix_a = doc_a[i].get_pixmap(dpi=300)
+            pix_b = doc_b[i].get_pixmap(dpi=300)
+
+            img_a = Image.open(tempfile.TemporaryFile()).convert("RGB")
+            img_a.fp.write(pix_a.tobytes("png"))
+            img_a.fp.seek(0)
+            img_a = Image.open(img_a.fp)
+
+            img_b = Image.open(tempfile.TemporaryFile()).convert("RGB")
+            img_b.fp.write(pix_b.tobytes("png"))
+            img_b.fp.seek(0)
+            img_b = Image.open(img_b.fp)
 
             if img_a.size != img_b.size:
-                return True, i + 1, img_a, img_b, 99999
+                return True, i + 1, total_score
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
             total_score += diff_score
 
             if diff_score > threshold:
-                return True, i + 1, img_a, img_b, diff_score
+                return True, i + 1, total_score
 
-        return False, None, None, None, total_score
+        return False, None, total_score
 
     except Exception as e:
         print(f"[{name}] Bildjämförelse fel:", e)
-        return False, None, None, None, 0
+        return False, None, 0
 
 def file_icon(filename):
-    return "📄" if filename.lower().endswith(".pdf") else "🗜️"
+    return "📄" if filename.lower().endswith(".pdf") else "🧼"
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
@@ -117,15 +126,11 @@ if file_a and file_b:
                     with row[3]: st.write("⚠️")
                     with row[4]: st.write("Text ändrad")
                 else:
-                    img_changed, page, img_a, img_b, score = compare_images(path_a, path_b)
+                    img_changed, page, score = compare_images(path_a, path_b)
                     if score > 0:
                         with row[3]: st.write(f"Diff-score: {score}")
                     if img_changed:
                         with row[4]: st.write(f"Bild ändrad (sida {page})")
-                        with st.expander(f"🔍 Visa skillnad: {name} (sida {page})"):
-                            col1, col2 = st.columns(2)
-                            col1.image(img_a, caption="Version A")
-                            col2.image(img_b, caption="Version B")
                     else:
                         with row[4]: st.write("–")
             else:
