@@ -87,7 +87,7 @@ def compare_images(path_a, path_b, progress_callback=None, total_pages_done=0, t
         return False, None
 
 def file_icon(filename):
-    return "📄" if filename.lower().endswith(".pdf") else "🫼"
+    return "📄" if filename.lower().endswith(".pdf") else "🧼"
 
 def generate_dummy_ai_pdf(path_b, output_name="revcheck.pdf"):
     doc = fitz.open(path_b)
@@ -117,102 +117,111 @@ if "ai_requests" not in st.session_state:
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
-        pdfs_a = extract_pdfs(file_a)
-        pdfs_b = extract_pdfs(file_b)
-        all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
+        status_placeholder = st.empty()
 
-        total_pages = 0
-        page_counts = {}
-        for name in all_names:
-            if name in pdfs_a and name in pdfs_b:
-                try:
-                    num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
-                    page_counts[name] = num
-                    total_pages += num
-                except:
-                    page_counts[name] = 0
+        with st.spinner("Analyserar filer... detta kan ta en stund."):
+            status_placeholder.info("🔄 Analyserar filer...")
 
-        progress_bar = st.progress(0.0)
-        pages_done = 0
+            pdfs_a = extract_pdfs(file_a)
+            pdfs_b = extract_pdfs(file_b)
+            all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
 
-        def update_progress(pages_done, total_pages):
-            progress = pages_done / total_pages if total_pages else 1.0
-            progress_bar.progress(progress)
-            time.sleep(0.001)
+            total_pages = 0
+            page_counts = {}
+            for name in all_names:
+                if name in pdfs_a and name in pdfs_b:
+                    try:
+                        num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
+                        page_counts[name] = num
+                        total_pages += num
+                    except:
+                        page_counts[name] = 0
 
-        st.markdown("### 📋 Jämförelsetabell")
-        header = st.columns([4, 2, 2, 2, 3, 2])
-        header[0].markdown("**Filnamn**")
-        header[1].markdown("**I Version A**")
-        header[2].markdown("**I Version B**")
-        header[3].markdown("**Skillnad i innehåll**")
-        header[4].markdown("**Typ av skillnad**")
-        header[5].markdown("**AI-Analysera**")
+            progress_bar = st.progress(0.0)
+            pages_done = 0
 
-        for name in all_names:
-            in_a = name in pdfs_a
-            in_b = name in pdfs_b
-            row = st.columns([4, 2, 2, 2, 3, 2])
+            def update_progress(pages_done, total_pages):
+                progress = pages_done / total_pages if total_pages else 1.0
+                progress_bar.progress(progress)
+                time.sleep(0.001)
 
-            with row[0]: st.write(f"{file_icon(name)} {name}")
-            with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
-            with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
+            st.markdown("### 📋 Jämförelsetabell")
+            header = st.columns([4, 2, 2, 2, 3, 2])
+            header[0].markdown("**Filnamn**")
+            header[1].markdown("**I Version A**")
+            header[2].markdown("**I Version B**")
+            header[3].markdown("**Skillnad i innehåll**")
+            header[4].markdown("**Typ av skillnad**")
+            header[5].markdown("**AI-Analysera**")
 
-            result_placeholder = row[3].empty()
-            type_placeholder = row[4].empty()
-            ai_placeholder = row[5].empty()
+            for name in all_names:
+                status_placeholder.info(f"🔍 Jämför {name}...")
 
-            show_ai_button = False
+                in_a = name in pdfs_a
+                in_b = name in pdfs_b
+                row = st.columns([4, 2, 2, 2, 3, 2])
 
-            if in_a and in_b:
-                path_a = pdfs_a[name]
-                path_b = pdfs_b[name]
+                with row[0]: st.write(f"{file_icon(name)} {name}")
+                with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
+                with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
-                text_changed = compare_text(path_a, path_b)
-                if text_changed:
-                    result_placeholder.write("⚠️")
-                    type_placeholder.write("Text ändrad")
-                    show_ai_button = True
-                    pages_done += page_counts.get(name, 0)
-                    update_progress(pages_done, total_pages)
-                else:
-                    def progress_callback(progress_fraction):
-                        progress_bar.progress(progress_fraction)
-                        time.sleep(0.001)
+                result_placeholder = row[3].empty()
+                type_placeholder = row[4].empty()
+                ai_placeholder = row[5].empty()
 
-                    img_changed, page = compare_images(
-                        path_a,
-                        path_b,
-                        progress_callback=progress_callback,
-                        total_pages_done=pages_done,
-                        total_pages=total_pages
-                    )
-                    pages_done += page_counts.get(name, 0)
-                    update_progress(pages_done, total_pages)
+                show_ai_button = False
 
-                    if img_changed:
+                if in_a and in_b:
+                    path_a = pdfs_a[name]
+                    path_b = pdfs_b[name]
+
+                    text_changed = compare_text(path_a, path_b)
+                    if text_changed:
                         result_placeholder.write("⚠️")
-                        type_placeholder.write(f"Bild ändrad (sida {page})")
+                        type_placeholder.write("Text ändrad")
                         show_ai_button = True
+                        pages_done += page_counts.get(name, 0)
+                        update_progress(pages_done, total_pages)
                     else:
-                        result_placeholder.write("-")
-                        type_placeholder.write("-")
-            else:
-                result_placeholder.write("-")
-                type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "-")
+                        def progress_callback(progress_fraction):
+                            progress_bar.progress(progress_fraction)
+                            time.sleep(0.001)
 
-            if show_ai_button:
-                if ai_placeholder.button("AI-Analysera", key=f"ai_{name}"):
-                    st.session_state.ai_requests[name] = pdfs_b[name]
-            else:
-                ai_placeholder.write("-")
+                        img_changed, page = compare_images(
+                            path_a,
+                            path_b,
+                            progress_callback=progress_callback,
+                            total_pages_done=pages_done,
+                            total_pages=total_pages
+                        )
+                        pages_done += page_counts.get(name, 0)
+                        update_progress(pages_done, total_pages)
 
-    # Efter analys: visa nedladdningsknappar för alla förfrågade AI-analyser
+                        if img_changed:
+                            result_placeholder.write("⚠️")
+                            type_placeholder.write(f"Bild ändrad (sida {page})")
+                            show_ai_button = True
+                        else:
+                            result_placeholder.write("–")
+                            type_placeholder.write("–")
+                else:
+                    result_placeholder.write("–")
+                    type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
+
+                if show_ai_button:
+                    if ai_placeholder.button("AI-Analysera", key=f"ai_{name}"):
+                        st.session_state.ai_requests[name] = path_b
+                else:
+                    ai_placeholder.write("–")
+
+            status_placeholder.success("✅ Analys klar.")
+
+    # Visa nedladdningsknappar för alla klickade AI-filer
     if st.session_state.ai_requests:
-        st.markdown("### 🔢 AI-genererade PDF:er")
+        st.markdown("### 🧠 AI-genererade PDF:er")
         for name, path_b in st.session_state.ai_requests.items():
             new_pdf_path = generate_dummy_ai_pdf(path_b, output_name=name.replace(".pdf", "_revcheck.pdf"))
             with open(new_pdf_path, "rb") as f:
-                st.download_button(f"Ladda ner {name.replace('.pdf', '_revcheck.pdf')}", f, file_name=os.path.basename(new_pdf_path), key=f"dl_{name}")
+                st.download_button(f"Ladda ner {os.path.basename(new_pdf_path)}", f, file_name=os.path.basename(new_pdf_path), key=f"dl_{name}")
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
