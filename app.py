@@ -6,7 +6,6 @@ import pdfplumber
 from difflib import SequenceMatcher
 from PIL import ImageChops, Image
 import fitz  # PyMuPDF
-from io import BytesIO
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -51,7 +50,7 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b, threshold=1):
+def compare_images(path_a, path_b, progress_callback=None):
     name = os.path.basename(path_a)
     try:
         doc_a = fitz.open(path_a)
@@ -61,14 +60,21 @@ def compare_images(path_a, path_b, threshold=1):
         total_score = 0
 
         for i in range(num_pages):
+            if progress_callback:
+                progress_callback((i + 1) / num_pages)
+
             pix_a = doc_a[i].get_pixmap(dpi=300)
             pix_b = doc_b[i].get_pixmap(dpi=300)
 
-            buf_a = BytesIO(pix_a.tobytes("png"))
-            buf_b = BytesIO(pix_b.tobytes("png"))
+            img_a = Image.open(tempfile.TemporaryFile())
+            img_a.fp.write(pix_a.tobytes("png"))
+            img_a.fp.seek(0)
+            img_a = Image.open(img_a.fp).convert("RGB")
 
-            img_a = Image.open(buf_a).convert("RGB")
-            img_b = Image.open(buf_b).convert("RGB")
+            img_b = Image.open(tempfile.TemporaryFile())
+            img_b.fp.write(pix_b.tobytes("png"))
+            img_b.fp.seek(0)
+            img_b = Image.open(img_b.fp).convert("RGB")
 
             if img_a.size != img_b.size:
                 return True, i + 1, total_score
@@ -77,7 +83,7 @@ def compare_images(path_a, path_b, threshold=1):
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
             total_score += diff_score
 
-            if diff_score > threshold:
+            if diff_score > 1:
                 return True, i + 1, total_score
 
         return False, None, total_score
@@ -114,25 +120,34 @@ if file_a and file_b:
             with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
             with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
+            progress_placeholder = row[3].empty()
+            type_placeholder = row[4].empty()
+
             if in_a and in_b:
                 path_a = pdfs_a[name]
                 path_b = pdfs_b[name]
 
                 text_changed = compare_text(path_a, path_b)
                 if text_changed:
-                    with row[3]: st.write("⚠️")
-                    with row[4]: st.write("Text ändrad")
+                    progress_placeholder.write("⚠️")
+                    type_placeholder.write("Text ändrad")
                 else:
-                    img_changed, page, score = compare_images(path_a, path_b)
+                    progress_bar = progress_placeholder.progress(0.0)
+
+                    def update_progress(value):
+                        progress_bar.progress(value)
+
+                    img_changed, page, score = compare_images(path_a, path_b, progress_callback=update_progress)
+                    progress_bar.empty()
+
                     if score > 0:
-                        with row[3]: st.write(f"⚠️")
+                        progress_placeholder.write(f"Diff-score: {score}")
                     if img_changed:
-                        with row[4]: st.write(f"Bild ändrad (sida {page})")
+                        type_placeholder.write(f"Bild ändrad (sida {page})")
                     else:
-                        with row[4]: st.write("–")
+                        type_placeholder.write("–")
             else:
-                with row[3]: st.write("–")
-                with row[4]:
-                    st.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
+                progress_placeholder.write("–")
+                type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
