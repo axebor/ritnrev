@@ -3,7 +3,7 @@ import os
 import zipfile
 import tempfile
 import pdfplumber
-from difflib import SequenceMatcher
+from diffllib import SequenceMatcher
 from PIL import ImageChops, Image
 import fitz  # PyMuPDF
 import time
@@ -97,7 +97,7 @@ if file_a and file_b:
         pdfs_b = extract_pdfs(file_b)
         all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
 
-        # För total progressberäkning baserat på sidor
+        # Räkna totalt antal sidor som ska jämföras
         total_pages = 0
         page_counts = {}
         for name in all_names:
@@ -109,8 +109,15 @@ if file_a and file_b:
                 except:
                     page_counts[name] = 0
 
-        total_progress_bar = st.progress(0.0)
+        # Förbättrad progressbar med st.empty()
+        progress_placeholder = st.empty()
+        progress_bar = progress_placeholder.progress(0.0)
         pages_done = 0
+
+        def update_progress(pages_done, total_pages):
+            progress = pages_done / total_pages if total_pages else 1.0
+            progress_bar.progress(progress)
+            st.experimental_sleep(0.001)  # säkerställer UI-uppdatering
 
         st.markdown("### 📋 Jämförelsetabell")
         header = st.columns([4, 2, 2, 2, 3])
@@ -141,16 +148,21 @@ if file_a and file_b:
                     result_placeholder.write("⚠️")
                     type_placeholder.write("Text ändrad")
                     pages_done += page_counts.get(name, 0)
-                    total_progress_bar.progress(pages_done / total_pages if total_pages else 1.0)
+                    update_progress(pages_done, total_pages)
                 else:
+                    def progress_callback(progress_fraction):
+                        progress_bar.progress(progress_fraction)
+                        st.experimental_sleep(0.001)
+
                     img_changed, page = compare_images(
                         path_a,
                         path_b,
-                        progress_callback=total_progress_bar.progress,
+                        progress_callback=progress_callback,
                         total_pages_done=pages_done,
                         total_pages=total_pages
                     )
                     pages_done += page_counts.get(name, 0)
+                    update_progress(pages_done, total_pages)
 
                     if img_changed:
                         result_placeholder.write("⚠️")
@@ -161,6 +173,5 @@ if file_a and file_b:
             else:
                 result_placeholder.write("–")
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
-
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
