@@ -61,8 +61,8 @@ def compare_images(path_a, path_b):
         num_pages = min(len(doc_a), len(doc_b))
 
         for i in range(num_pages):
-            pix_a = doc_a[i].get_pixmap(dpi=300)
-            pix_b = doc_b[i].get_pixmap(dpi=300)
+            pix_a = doc_a[i].get_pixmap(dpi=150)
+            pix_b = doc_b[i].get_pixmap(dpi=150)
 
             img_a = Image.open(io.BytesIO(pix_a.tobytes("png"))).convert("RGB")
             img_b = Image.open(io.BytesIO(pix_b.tobytes("png"))).convert("RGB")
