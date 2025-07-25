@@ -3,7 +3,7 @@ import os
 import zipfile
 import tempfile
 import pdfplumber
-from diffllib import SequenceMatcher
+from difflib import SequenceMatcher
 from PIL import ImageChops, Image
 import fitz  # PyMuPDF
 import time
