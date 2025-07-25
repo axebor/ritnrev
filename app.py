@@ -18,7 +18,6 @@ with col2:
     file_b = st.file_uploader("📁 Version B", type=["pdf", "zip"], key="file_b")
 
 def extract_pdfs(file):
-    """Returnerar dict: {filnamn.pdf: full_path}"""
     result = {}
     if file.name.lower().endswith(".pdf"):
         temp_dir = tempfile.mkdtemp()
@@ -42,43 +41,44 @@ def extract_text(path):
     try:
         with pdfplumber.open(path) as pdf:
             return "\n".join(page.extract_text() or "" for page in pdf.pages)
-    except Exception as e:
-        st.error(f"Fel vid textutvinning från {path}: {e}")
+    except:
         return ""
 
 def compare_text(path_a, path_b, threshold=0.98):
     text_a = extract_text(path_a)
     text_b = extract_text(path_b)
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
-    st.write(f"Textjämförelse för {os.path.basename(path_a)}: Likhet = {ratio:.2%}")
     return ratio < threshold
 
-def compare_images(path_a, path_b, dpi=150, threshold=10000):
+def compare_images(path_a, path_b, dpi=300, threshold=1):
+    name = os.path.basename(path_a)
     try:
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
             images_a = convert_from_bytes(f1.read(), dpi=dpi)
             images_b = convert_from_bytes(f2.read(), dpi=dpi)
 
         num_pages = min(len(images_a), len(images_b))
+        total_score = 0
+
         for i in range(num_pages):
             img_a = images_a[i].convert("RGB")
             img_b = images_b[i].convert("RGB")
 
             if img_a.size != img_b.size:
-                st.warning(f"Sida {i+1}: Bilderna har olika storlekar. Skalar om till minsta storlek.")
-                min_size = (min(img_a.size[0], img_b.size[0]), min(img_a.size[1], img_b.size[1]))
-                img_a = img_a.resize(min_size, Image.Resampling.LANCZOS)
-                img_b = img_b.resize(min_size, Image.Resampling.LANCZOS)
+                return True, i + 1, img_a, img_b, 99999
 
             diff = ImageChops.difference(img_a, img_b)
-            diff_score = sum(sum(pixel) for pixel in diff.getdata()) / (img_a.size[0] * img_a.size[1])  # Normaliserad diff_score
-            st.write(f"[{os.path.basename(path_a)}] Sida {i+1} – diff_score: {diff_score:.2f}")
+            diff_score = sum(sum(pixel) for pixel in diff.getdata())
+            total_score += diff_score
+            print(f"[{name}] Sida {i+1} – diff_score: {diff_score}")
 
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
-        return False, None, None, None, 0
+
+        return False, None, None, None, total_score
+
     except Exception as e:
-        st.error(f"Fel vid bildjämförelse för {path_a}: {str(e)}. Kontrollera att poppler är installerat och i PATH.")
+        print(f"[{name}] Bildjämförelse fel:", e)
         return False, None, None, None, 0
 
 def file_icon(filename):
@@ -86,6 +86,7 @@ def file_icon(filename):
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
+        st.markdown("🚀 **Analys startar – scrolla ner för resultat...**")
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
 
@@ -111,25 +112,23 @@ if file_a and file_b:
             if in_a and in_b:
                 path_a = pdfs_a[name]
                 path_b = pdfs_b[name]
-                text_changed = compare_text(path_a, path_b)
-                img_changed, page, img_a, img_b, score = compare_images(path_a, path_b)
 
-                if text_changed or img_changed:
+                text_changed = compare_text(path_a, path_b)
+                if text_changed:
                     with row[3]: st.write("⚠️")
-                    if text_changed and img_changed:
-                        with row[4]: st.write(f"Text och bild ändrad (sida {page}) – diff_score: {score:.2f}")
-                    elif text_changed:
-                        with row[4]: st.write("Text ändrad")
-                    elif img_changed:
-                        with row[4]: st.write(f"Bild ändrad (sida {page}) – diff_score: {score:.2f}")
+                    with row[4]: st.write("Text ändrad")
+                else:
+                    img_changed, page, img_a, img_b, score = compare_images(path_a, path_b)
+                    if score > 0:
+                        with row[3]: st.write(f"Diff: {score}")
                     if img_changed:
-                        with st.expander(f"🔍 Visa skillnad (sida {page})"):
+                        with row[4]: st.write(f"Bild ändrad (sida {page})")
+                        with st.expander(f"🔍 Visa skillnad: {name} (sida {page})"):
                             col1, col2 = st.columns(2)
                             col1.image(img_a, caption="Version A")
                             col2.image(img_b, caption="Version B")
-                else:
-                    with row[3]: st.write("–")
-                    with row[4]: st.write("Ingen skillnad")
+                    else:
+                        with row[4]: st.write("–")
             else:
                 with row[3]: st.write("–")
                 with row[4]:
