@@ -6,6 +6,7 @@ import pdfplumber
 from difflib import SequenceMatcher
 from PIL import ImageChops, Image
 import fitz  # PyMuPDF
+import io
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -66,15 +67,8 @@ def compare_images(path_a, path_b, progress_callback=None):
             pix_a = doc_a[i].get_pixmap(dpi=300)
             pix_b = doc_b[i].get_pixmap(dpi=300)
 
-            img_a = Image.open(tempfile.TemporaryFile())
-            img_a.fp.write(pix_a.tobytes("png"))
-            img_a.fp.seek(0)
-            img_a = Image.open(img_a.fp).convert("RGB")
-
-            img_b = Image.open(tempfile.TemporaryFile())
-            img_b.fp.write(pix_b.tobytes("png"))
-            img_b.fp.seek(0)
-            img_b = Image.open(img_b.fp).convert("RGB")
+            img_a = Image.open(io.BytesIO(pix_a.tobytes("png"))).convert("RGB")
+            img_b = Image.open(io.BytesIO(pix_b.tobytes("png"))).convert("RGB")
 
             if img_a.size != img_b.size:
                 return True, i + 1, total_score
@@ -140,8 +134,7 @@ if file_a and file_b:
                     img_changed, page, score = compare_images(path_a, path_b, progress_callback=update_progress)
                     progress_bar.empty()
 
-                    if score > 0:
-                        progress_placeholder.write(f"Diff-score: {score}")
+                    progress_placeholder.write(f"Diff-score: {score}")
                     if img_changed:
                         type_placeholder.write(f"Bild ändrad (sida {page})")
                     else:
