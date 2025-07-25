@@ -135,7 +135,7 @@ if file_a and file_b:
                 result_placeholder.write("–")
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
-            time.sleep(0.2)
+            time.sleep(0.6)
             total_progress_bar.progress((idx + 1) / total_files)
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
