@@ -6,6 +6,7 @@ import pdfplumber
 from difflib import SequenceMatcher
 from pdf2image import convert_from_bytes
 from PIL import ImageChops, Image
+import hashlib
 
 st.set_page_config(page_title="PDF-jämförelse", layout="wide")
 st.title("🔍 Jämför två versioner av handlingar")
@@ -17,15 +18,20 @@ with col1:
 with col2:
     file_b = st.file_uploader("📁 Version B", type=["pdf", "zip"], key="file_b")
 
+def unique_key(file_name, file_bytes):
+    hash_val = hashlib.md5(file_bytes).hexdigest()[:8]
+    return f"{file_name}__{hash_val}"
+
 def extract_pdfs(file):
-    """Returnerar dict: {filnamn.pdf: full_path}"""
     result = {}
     if file.name.lower().endswith(".pdf"):
         temp_dir = tempfile.mkdtemp()
         path = os.path.join(temp_dir, file.name)
+        content = file.read()
         with open(path, "wb") as f:
-            f.write(file.read())
-        result[file.name] = path
+            f.write(content)
+        key = unique_key(file.name, content)
+        result[key] = path
     elif file.name.lower().endswith(".zip"):
         temp_dir = tempfile.mkdtemp()
         with zipfile.ZipFile(file, "r") as z:
@@ -34,8 +40,11 @@ def extract_pdfs(file):
             for f in files:
                 if f.lower().endswith(".pdf"):
                     full_path = os.path.join(root, f)
+                    with open(full_path, "rb") as fp:
+                        content = fp.read()
                     rel_path = os.path.relpath(full_path, temp_dir)
-                    result[rel_path.replace("\\", "/").split("/")[-1]] = full_path
+                    key = unique_key(rel_path, content)
+                    result[key] = full_path
     return result
 
 def extract_text(path):
@@ -52,12 +61,14 @@ def compare_text(path_a, path_b, threshold=0.98):
     return ratio < threshold
 
 def compare_images(path_a, path_b, dpi=300, threshold=1):
+    name = os.path.basename(path_a)
     try:
         with open(path_a, "rb") as f1, open(path_b, "rb") as f2:
             images_a = convert_from_bytes(f1.read(), dpi=dpi)
             images_b = convert_from_bytes(f2.read(), dpi=dpi)
 
         num_pages = min(len(images_a), len(images_b))
+
         for i in range(num_pages):
             img_a = images_a[i].convert("RGB")
             img_b = images_b[i].convert("RGB")
@@ -67,13 +78,15 @@ def compare_images(path_a, path_b, dpi=300, threshold=1):
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
-            print(f"[{os.path.basename(path_a)}] Sida {i+1} – diff_score: {diff_score}")
+            print(f"[{name}] Sida {i+1} – diff_score: {diff_score}")
+
             if diff_score > threshold:
                 return True, i + 1, img_a, img_b, diff_score
 
         return False, None, None, None, 0
+
     except Exception as e:
-        print("Bildjämförelsefel:", e)
+        print(f"[{name}] Bildjämförelse fel:", e)
         return False, None, None, None, 0
 
 def file_icon(filename):
@@ -84,7 +97,10 @@ if file_a and file_b:
         pdfs_a = extract_pdfs(file_a)
         pdfs_b = extract_pdfs(file_b)
 
-        all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
+        keys_a = {os.path.basename(k): v for k, v in pdfs_a.items()}
+        keys_b = {os.path.basename(k): v for k, v in pdfs_b.items()}
+
+        all_filenames = sorted(set(keys_a.keys()).union(set(keys_b.keys())))
 
         st.markdown("### 📋 Jämförelsetabell")
         header = st.columns([4, 2, 2, 2, 3])
@@ -94,9 +110,9 @@ if file_a and file_b:
         header[3].markdown("**Skillnad i innehåll**")
         header[4].markdown("**Typ av skillnad**")
 
-        for name in all_names:
-            in_a = name in pdfs_a
-            in_b = name in pdfs_b
+        for name in all_filenames:
+            in_a = name in keys_a
+            in_b = name in keys_b
             row = st.columns([4, 2, 2, 2, 3])
 
             with row[0]: st.write(f"{file_icon(name)} {name}")
@@ -104,8 +120,8 @@ if file_a and file_b:
             with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
             if in_a and in_b:
-                path_a = pdfs_a[name]
-                path_b = pdfs_b[name]
+                path_a = keys_a[name]
+                path_b = keys_b[name]
                 text_changed = compare_text(path_a, path_b)
                 if text_changed:
                     with row[3]: st.write("⚠️")
