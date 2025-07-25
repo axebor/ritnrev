@@ -52,20 +52,15 @@ def compare_text(path_a, path_b, threshold=0.98):
     ratio = SequenceMatcher(None, text_a, text_b).ratio()
     return ratio < threshold
 
-def compare_images(path_a, path_b, progress_callback=None):
+def compare_images(path_a, path_b):
     name = os.path.basename(path_a)
     try:
         doc_a = fitz.open(path_a)
         doc_b = fitz.open(path_b)
 
         num_pages = min(len(doc_a), len(doc_b))
-        total_score = 0
 
         for i in range(num_pages):
-            if progress_callback:
-                progress_callback((i + 1) / num_pages)
-            time.sleep(0.1)
-
             pix_a = doc_a[i].get_pixmap(dpi=300)
             pix_b = doc_b[i].get_pixmap(dpi=300)
 
@@ -73,20 +68,19 @@ def compare_images(path_a, path_b, progress_callback=None):
             img_b = Image.open(io.BytesIO(pix_b.tobytes("png"))).convert("RGB")
 
             if img_a.size != img_b.size:
-                return True, i + 1, total_score
+                return True, i + 1
 
             diff = ImageChops.difference(img_a, img_b)
             diff_score = sum(sum(pixel) for pixel in diff.getdata())
-            total_score += diff_score
 
             if diff_score > 1:
-                return True, i + 1, total_score
+                return True, i + 1
 
-        return False, None, total_score
+        return False, None
 
     except Exception as e:
         print(f"[{name}] Bildjämförelse fel:", e)
-        return False, None, 0
+        return False, None
 
 def file_icon(filename):
     return "📄" if filename.lower().endswith(".pdf") else "🧼"
@@ -118,7 +112,7 @@ if file_a and file_b:
             with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
             with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
 
-            progress_placeholder = row[3].empty()
+            result_placeholder = row[3].empty()
             type_placeholder = row[4].empty()
 
             if in_a and in_b:
@@ -127,27 +121,21 @@ if file_a and file_b:
 
                 text_changed = compare_text(path_a, path_b)
                 if text_changed:
-                    progress_placeholder.write("⚠️")
+                    result_placeholder.write("⚠️")
                     type_placeholder.write("Text ändrad")
                 else:
-                    progress_bar = progress_placeholder.progress(0.0)
-
-                    def update_progress(value):
-                        progress_bar.progress(value)
-
-                    img_changed, page, score = compare_images(path_a, path_b, progress_callback=update_progress)
-                    progress_bar.empty()
-
-                    if score > 0:
-                        progress_placeholder.write(f"Diff-score: {score}")
+                    img_changed, page = compare_images(path_a, path_b)
                     if img_changed:
+                        result_placeholder.write("⚠️")
                         type_placeholder.write(f"Bild ändrad (sida {page})")
                     else:
+                        result_placeholder.write("–")
                         type_placeholder.write("–")
             else:
-                progress_placeholder.write("–")
+                result_placeholder.write("–")
                 type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
+            time.sleep(0.1)
             total_progress_bar.progress((idx + 1) / total_files)
 else:
     st.info("Ladda upp två filer för att kunna jämföra.")
