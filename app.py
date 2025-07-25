@@ -91,98 +91,6 @@ def file_icon(filename):
 
 if file_a and file_b:
     if st.button("🔍 Jämför"):
-        status_placeholder = st.empty()  # Visar status under analys
-
-        with st.spinner("Analyserar filer... detta kan ta en stund."):
-            status_placeholder.info("🔄 Analyserar filer...")
-
-            pdfs_a = extract_pdfs(file_a)
-            pdfs_b = extract_pdfs(file_b)
-            all_names = sorted(set(pdfs_a.keys()).union(set(pdfs_b.keys())))
-
-            total_pages = 0
-            page_counts = {}
-            for name in all_names:
-                if name in pdfs_a and name in pdfs_b:
-                    try:
-                        num = min(len(fitz.open(pdfs_a[name])), len(fitz.open(pdfs_b[name])))
-                        page_counts[name] = num
-                        total_pages += num
-                    except:
-                        page_counts[name] = 0
-
-            progress_bar = st.progress(0.0)
-            pages_done = 0
-
-            def update_progress(pages_done, total_pages):
-                progress = pages_done / total_pages if total_pages else 1.0
-                progress_bar.progress(progress)
-                time.sleep(0.001)
-
-            st.markdown("### 📋 Jämförelsetabell")
-            header = st.columns([4, 2, 2, 2, 3])
-            header[0].markdown("**Filnamn**")
-            header[1].markdown("**I Version A**")
-            header[2].markdown("**I Version B**")
-            header[3].markdown("**Skillnad i innehåll**")
-            header[4].markdown("**Typ av skillnad**")
-
-            for name in all_names:
-                status_placeholder.info(f"🔍 Jämför {name}...")
-
-                in_a = name in pdfs_a
-                in_b = name in pdfs_b
-                row = st.columns([4, 2, 2, 2, 3])
-
-                with row[0]: st.write(f"{file_icon(name)} {name}")
-                with row[1]: st.write("✅ Ja" if in_a else "❌ Nej")
-                with row[2]: st.write("✅ Ja" if in_b else "❌ Nej")
-
-                result_placeholder = row[3].empty()
-                type_placeholder = row[4].empty()
-
-                if in_a and in_b:
-                    path_a = pdfs_a[name]
-                    path_b = pdfs_b[name]
-
-                    text_changed = compare_text(path_a, path_b)
-                    if text_changed:
-                        result_placeholder.write("⚠️")
-                        type_placeholder.write("Text ändrad")
-                        pages_done += page_counts.get(name, 0)
-                        update_progress(pages_done, total_pages)
-                    else:
-                        def progress_callback(progress_fraction):
-                            progress_bar.progress(progress_fraction)
-                            time.sleep(0.001)
-
-                        img_changed, page = compare_images(
-                            path_a,
-                            path_b,
-                            progress_callback=progress_callback,
-                            total_pages_done=pages_done,
-                            total_pages=total_pages
-                        )
-                        pages_done += page_counts.get(name, 0)
-                        update_progress(pages_done, total_pages)
-
-                        if img_changed:
-                            result_placeholder.write("⚠️")
-                            type_placeholder.write(f"Bild ändrad (sida {page})")
-                        else:
-                            result_placeholder.write("–")
-                            type_placeholder.write("–")
-                else:
-                    result_placeholder.write("–")
-                    type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
-
-        status_placeholder.success("✅ Analys klar.")
-else:
-    st.info("Ladda upp två filer för att kunna jämföra.")
-# ... [alla imports och tidigare kod är oförändrade till hit]
-
-if file_a and file_b:
-    if st.button("🔍 Jämför"):
         status_placeholder = st.empty()
 
         with st.spinner("Analyserar filer... detta kan ta en stund."):
@@ -212,7 +120,7 @@ if file_a and file_b:
                 time.sleep(0.001)
 
             st.markdown("### 📋 Jämförelsetabell")
-            header = st.columns([4, 2, 2, 2, 3, 2])  # <- Extra kolumn
+            header = st.columns([4, 2, 2, 2, 3, 2])  # Extra kolumn för AI
             header[0].markdown("**Filnamn**")
             header[1].markdown("**I Version A**")
             header[2].markdown("**I Version B**")
@@ -235,7 +143,7 @@ if file_a and file_b:
                 type_placeholder = row[4].empty()
                 ai_button_placeholder = row[5].empty()
 
-                show_ai_button = False  # default
+                show_ai_button = False
 
                 if in_a and in_b:
                     path_a = pdfs_a[name]
@@ -274,7 +182,6 @@ if file_a and file_b:
                     result_placeholder.write("–")
                     type_placeholder.write("Saknas i B" if in_a and not in_b else "Saknas i A" if in_b and not in_a else "–")
 
-                # Visa AI-knapp om skillnad hittades
                 if show_ai_button:
                     ai_button_placeholder.button("AI-Analysera", key=f"ai_{name}")
                 else:
