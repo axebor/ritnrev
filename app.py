@@ -109,15 +109,15 @@ if file_a and file_b:
                 except:
                     page_counts[name] = 0
 
-        # Förbättrad progressbar med st.empty()
+        # Progressbar med jämn uppdatering
         progress_placeholder = st.empty()
         progress_bar = progress_placeholder.progress(0.0)
         pages_done = 0
 
-def update_progress(pages_done, total_pages):
-    progress = pages_done / total_pages if total_pages else 1.0
-    progress_bar.progress(progress)
-    time.sleep(0.001)  # ✅ ersätter st.experimental_sleep()
+        def update_progress(pages_done, total_pages):
+            progress = pages_done / total_pages if total_pages else 1.0
+            progress_bar.progress(progress)
+            time.sleep(0.001)  # säkerställer att UI inte fryser
 
         st.markdown("### 📋 Jämförelsetabell")
         header = st.columns([4, 2, 2, 2, 3])
@@ -153,7 +153,6 @@ def update_progress(pages_done, total_pages):
                     def progress_callback(progress_fraction):
                         progress_bar.progress(progress_fraction)
                         time.sleep(0.001)
-
 
                     img_changed, page = compare_images(
                         path_a,
